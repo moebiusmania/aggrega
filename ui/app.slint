@@ -209,9 +209,14 @@ export component AppWindow inherits Window {
             reject
         }
 
-        HorizontalLayout {
-            Sidebar {
+        // Positioned by hand rather than in a layout: the sidebar's width follows
+        // the window's, and inside a layout that would feed back into the
+        // window's own size constraints (a binding loop).
+        Rectangle {
+            sidebar := Sidebar {
+                x: 0px;
                 width: root.sidebar-width;
+                height: parent.height;
                 animate width { duration: 220ms; easing: ease-out; }
                 feeds: root.feeds;
                 selected: root.selected-feed;
@@ -230,7 +235,9 @@ export component AppWindow inherits Window {
             }
 
             main := Rectangle {
-                horizontal-stretch: 1;
+                x: sidebar.width;
+                width: parent.width - sidebar.width;
+                height: parent.height;
                 // Total side margin: roomy normally, tighter in narrow windows.
                 property <length> inset: self.width < 640px ? 40px : 72px;
                 property <bool> narrow: self.width < 640px;
