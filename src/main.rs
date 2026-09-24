@@ -922,6 +922,8 @@ mod tests {
         let ui = AppWindow::new().unwrap();
         let app = setup(&ui, store, paths).unwrap();
         app.reload_all();
+        // Headless windows start at 0×0, where every element counts as clipped away.
+        ui.window().set_size(slint::LogicalSize::new(1240., 820.));
         // Let the opening animation finish so key presses aren't swallowed by it.
         testing::mock_elapsed_time(Duration::from_secs(3));
         (ui, app, dir)

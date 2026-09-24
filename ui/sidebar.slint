@@ -152,9 +152,6 @@ export component Sidebar inherits Rectangle {
     callback toggle-theme();
     callback toggle-maximize();
 
-    // The compact sidebar (narrow windows) tightens the masthead.
-    property <bool> narrow: self.width < 250px;
-
     background: Theme.sidebar;
     animate background { duration: 300ms; }
 
@@ -179,8 +176,10 @@ export component Sidebar inherits Rectangle {
                 }
             }
             VerticalLayout {
-                padding-left: root.narrow ? 16px : 22px;
-                padding-right: self.padding-left;
+                // Fixed (not width-dependent) so the masthead can't feed back into
+                // the window's layout; sized to fit the compact 224px sidebar.
+                padding-left: 18px;
+                padding-right: 18px;
                 padding-bottom: 26px;
                 spacing: 6px;
                 Text {
@@ -208,7 +207,8 @@ export component Sidebar inherits Rectangle {
                     font-family: Fonts.sans-bold;
                     font-weight: 700;
                     font-size: 9.5px;
-                    letter-spacing: root.narrow ? 1.2px : 1.9px;
+                    letter-spacing: 1.4px;
+                    overflow: elide;
                     color: Theme.text-muted;
                 }
             }
