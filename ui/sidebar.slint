@@ -152,6 +152,9 @@ export component Sidebar inherits Rectangle {
     callback toggle-theme();
     callback toggle-maximize();
 
+    // The compact sidebar (narrow windows) tightens the masthead.
+    property <bool> narrow: self.width < 250px;
+
     background: Theme.sidebar;
     animate background { duration: 300ms; }
 
@@ -176,8 +179,8 @@ export component Sidebar inherits Rectangle {
                 }
             }
             VerticalLayout {
-                padding-left: 22px;
-                padding-right: 22px;
+                padding-left: root.narrow ? 16px : 22px;
+                padding-right: self.padding-left;
                 padding-bottom: 26px;
                 spacing: 6px;
                 Text {
@@ -205,7 +208,7 @@ export component Sidebar inherits Rectangle {
                     font-family: Fonts.sans-bold;
                     font-weight: 700;
                     font-size: 9.5px;
-                    letter-spacing: 1.9px;
+                    letter-spacing: root.narrow ? 1.2px : 1.9px;
                     color: Theme.text-muted;
                 }
             }
@@ -226,6 +229,7 @@ export component Sidebar inherits Rectangle {
             text: "SOURCES";
             IconButton {
                 icon: Icons.plus;
+                label: "Add source";
                 size: 26px;
                 icon-size: 15px;
                 clicked => { root.add(); }
