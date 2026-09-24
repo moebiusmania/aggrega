@@ -24,7 +24,8 @@ jobs:
           pacman -Syu --noconfirm --needed \
             base-devel git rustup pkgconf \
             fontconfig freetype2 libxkbcommon wayland libglvnd \
-            libx11 libxcursor libxi libxrandr
+            libx11 libxcursor libxi libxrandr \
+            ttf-dejavu
 
       - name: Install Rust toolchain
         run: rustup toolchain install stable --profile minimal && rustup default stable
@@ -33,6 +34,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
 
-      # UI tests use Slint's headless testing backend, so no display is needed.
+      # UI tests use Slint's headless testing backend, so no display is needed,
+      # but font lookup needs at least one system font (hence ttf-dejavu).
       - name: Test
         run: cargo test --locked

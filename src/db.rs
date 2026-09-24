@@ -37,7 +37,6 @@ pub struct Article {
 /// Everything the reader view needs for one article.
 #[derive(Debug, Clone)]
 pub struct ReaderArticle {
-    pub id: i64,
     pub title: String,
     pub link: String,
     pub image_url: Option<String>,
@@ -305,20 +304,19 @@ impl Store {
         Ok(self
             .conn
             .query_row(
-                "SELECT a.id, a.title, a.link, a.image_url, a.published, a.read, f.title, a.body
+                "SELECT a.title, a.link, a.image_url, a.published, a.read, f.title, a.body
                  FROM articles a JOIN feeds f ON f.id = a.feed_id
                  WHERE a.id = ?1",
                 [id],
                 |r| {
                     Ok(ReaderArticle {
-                        id: r.get(0)?,
-                        title: r.get(1)?,
-                        link: r.get(2)?,
-                        image_url: r.get(3)?,
-                        published: r.get(4)?,
-                        read: r.get(5)?,
-                        feed_title: r.get(6)?,
-                        body: r.get(7)?,
+                        title: r.get(0)?,
+                        link: r.get(1)?,
+                        image_url: r.get(2)?,
+                        published: r.get(3)?,
+                        read: r.get(4)?,
+                        feed_title: r.get(5)?,
+                        body: r.get(6)?,
                     })
                 },
             )
