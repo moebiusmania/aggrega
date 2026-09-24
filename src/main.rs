@@ -923,14 +923,14 @@ mod tests {
         let app = setup(&ui, store, paths).unwrap();
         app.reload_all();
         // Let the opening animation finish so key presses aren't swallowed by it.
-        testing::mock_elapsed_time(3000);
+        testing::mock_elapsed_time(Duration::from_secs(3));
         (ui, app, dir)
     }
 
     fn resize(ui: &AppWindow, w: f32, h: f32) {
         ui.window().set_size(slint::LogicalSize::new(w, h));
         // The sidebar animates its width.
-        testing::mock_elapsed_time(1000);
+        testing::mock_elapsed_time(Duration::from_secs(1));
     }
 
     fn press(ui: &AppWindow, key: impl Into<SharedString>) {
