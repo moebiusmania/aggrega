@@ -43,4 +43,4 @@ CI (`.github/workflows/ci.yml`) runs `cargo test --locked` in an `archlinux` con
 
 ## Project skills
 
-`.claude/skills/` has `precheck` (fmt + clippy + tests before pushing), `run-app` (launch against a throwaway profile, seed feeds, take screenshots) and `release` (version bump, tag, watch the Release build).
+`.claude/skills/` has `precheck` (fmt + clippy + tests before pushing), `run-app` (launch against a throwaway profile, seed feeds, take screenshots) and `release` (tag, watch the Release build; the tag alone sets the version).
