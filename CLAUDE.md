@@ -40,3 +40,7 @@ CI (`.github/workflows/ci.yml`) runs `cargo test --locked` in an `archlinux` con
 - Keep the dependency set lean: no Tokio/reqwest, Slint only with `backend-winit` + `renderer-femtovg`, and `image` limited to jpeg/png/gif/webp decoders.
 - No telemetry or network traffic beyond fetching the user's feeds, thumbnails and articles (a stated product guarantee).
 - Idle CPU must stay at zero, so continuous animations must sit behind a condition (see `animation-tick()` gated on `refreshing`).
+
+## Project skills
+
+`.claude/skills/` has `precheck` (fmt + clippy + tests before pushing), `run-app` (launch against a throwaway profile, seed feeds, take screenshots) and `release` (version bump, tag, watch the Release build).
