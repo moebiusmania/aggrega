@@ -1,5 +1,5 @@
-# Runs the test suite on pushes to main and on every pull request (including
-# ones from forks). Tags are left to release.yml.
+# Runs the lints and the test suite on pushes to main and on every pull request
+# (including ones from forks). Tags are left to release.yml.
 name: CI
 
 on:
@@ -40,3 +40,31 @@ jobs:
       # but font lookup needs at least one system font (hence ttf-dejavu).
       - name: Test
         run: cargo test --locked
+
+  # The same checks as `make lint`. Clippy compiles the crate, so it needs the
+  # same native libraries as the test job.
+  lint:
+    runs-on: ubuntu-24.04
+    container: archlinux:latest
+    steps:
+      - name: Install build dependencies
+        run: |
+          pacman -Syu --noconfirm --needed \
+            base-devel git rustup pkgconf \
+            fontconfig freetype2 libxkbcommon wayland libglvnd \
+            libx11 libxcursor libxi libxrandr
+
+      - name: Install Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal --component clippy,rustfmt
+          rustup default stable
+
+      - uses: actions/checkout@v7
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check formatting
+        run: cargo fmt --check
+
+      - name: Clippy
+        run: cargo clippy --locked -- -D warnings

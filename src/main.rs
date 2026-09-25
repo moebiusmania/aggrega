@@ -953,6 +953,17 @@ mod tests {
         app.reader_blocks.iter().map(|b| b.kind).collect()
     }
 
+    /// The read flag as stored, bypassing the list model.
+    fn read_in_db(app: &App, id: i64) -> bool {
+        app.store
+            .articles(None, false, 10)
+            .unwrap()
+            .into_iter()
+            .find(|a| a.id == id)
+            .expect("article is in the database")
+            .read
+    }
+
     #[test]
     fn layout_adapts_to_window_width() {
         let (ui, _app, dir) = start("layout");
@@ -1007,7 +1018,7 @@ mod tests {
 
         // Opening marks the story read, in the database and in the list.
         let id = info.id as i64;
-        assert!(app.store.reader_article(id).unwrap().unwrap().read);
+        assert!(read_in_db(&app, id));
         assert!(app.articles.row_data(row).unwrap().read);
         std::fs::remove_dir_all(dir).unwrap();
     }
@@ -1110,12 +1121,12 @@ mod tests {
 
         app.reader_toggle_read();
         assert!(!ui.get_reader().read);
-        assert!(!app.store.reader_article(id).unwrap().unwrap().read);
+        assert!(!read_in_db(&app, id));
         assert!(!app.articles.row_data(row).unwrap().read);
 
         app.reader_toggle_read();
         assert!(ui.get_reader().read);
-        assert!(app.store.reader_article(id).unwrap().unwrap().read);
+        assert!(read_in_db(&app, id));
         std::fs::remove_dir_all(dir).unwrap();
     }
 
@@ -1149,7 +1160,7 @@ mod tests {
             .next()
             .expect("mark as unread button");
         mark.invoke_accessible_default_action();
-        assert!(!app.store.reader_article(id).unwrap().unwrap().read);
+        assert!(!read_in_db(&app, id));
         // The label follows the state.
         assert!(
             ElementHandle::find_by_accessible_label(&ui, "Mark as read")

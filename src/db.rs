@@ -41,7 +41,6 @@ pub struct ReaderArticle {
     pub link: String,
     pub image_url: Option<String>,
     pub published: i64,
-    pub read: bool,
     pub feed_title: String,
     /// `reader::encode`d blocks; `None` for articles stored before the reader existed.
     pub body: Option<String>,
@@ -304,7 +303,7 @@ impl Store {
         Ok(self
             .conn
             .query_row(
-                "SELECT a.title, a.link, a.image_url, a.published, a.read, f.title, a.body
+                "SELECT a.title, a.link, a.image_url, a.published, f.title, a.body
                  FROM articles a JOIN feeds f ON f.id = a.feed_id
                  WHERE a.id = ?1",
                 [id],
@@ -314,9 +313,8 @@ impl Store {
                         link: r.get(1)?,
                         image_url: r.get(2)?,
                         published: r.get(3)?,
-                        read: r.get(4)?,
-                        feed_title: r.get(5)?,
-                        body: r.get(6)?,
+                        feed_title: r.get(4)?,
+                        body: r.get(5)?,
                     })
                 },
             )
@@ -415,13 +413,10 @@ mod tests {
         assert_eq!(a.feed_title, "Sample");
         assert_eq!(a.link, "https://x.org/1");
         assert_eq!(a.body.as_deref(), Some("p Body 1\n"));
-        assert!(!a.read);
 
         store.set_body(id, "p Full page\n")?;
-        store.set_read(id, true)?;
         let a = store.reader_article(id)?.unwrap();
         assert_eq!(a.body.as_deref(), Some("p Full page\n"));
-        assert!(a.read);
         assert!(store.reader_article(9999)?.is_none());
         std::fs::remove_dir_all(&dir)?;
         Ok(())
