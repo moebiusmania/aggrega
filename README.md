@@ -33,6 +33,7 @@
 |---|---|
 | `F5` / `Ctrl+R` | Refresh all sources |
 | `Ctrl+N` | Add a source |
+| `Ctrl+,` | Open settings |
 | `Enter` | Confirm in the "Add source" dialog |
 | `Esc` | Close dialogs, or close the reader |
 | `Backspace` / `←` | Back to the list (reader) |
@@ -68,7 +69,7 @@ Each release run builds a universal `Aggrega.app` (Apple silicon and Intel, macO
 | Subscriptions, articles, read state, settings | `~/.local/share/aggrega/aggrega.db` | `~/Library/Application Support/aggrega/aggrega.db` |
 | Thumbnail cache (safe to delete) | `~/.cache/aggrega/thumbs/` | `~/Library/Caches/aggrega/thumbs/` |
 
-On Linux, both paths honour `XDG_DATA_HOME` / `XDG_CACHE_HOME`. Setting `AGGREGA_HOME` keeps everything in that one directory instead (`aggrega.db` and `thumbs/`), which is handy for a separate or throwaway profile. To start fresh, quit Aggrega and delete the two directories. Read articles older than 90 days are pruned automatically.
+On Linux, both paths honour `XDG_DATA_HOME` / `XDG_CACHE_HOME`. Setting `AGGREGA_HOME` keeps everything in that one directory instead (`aggrega.db` and `thumbs/`), which is handy for a separate or throwaway profile. **Settings → About** shows the paths in use, with buttons to open each folder. To start fresh, quit Aggrega and delete the two directories. Read articles older than 90 days are pruned automatically.
 
 ## Documentation
 
@@ -101,6 +102,7 @@ aggrega/
 │   ├── article-card.slint
 │   ├── reader.slint    # in-app reader view
 │   ├── dialogs.slint   # add-source + remove-confirmation modals
+│   ├── settings.slint  # settings modal (tabbed: Export, About)
 │   └── icons/          # SVG icons
 ├── assets/
 │   ├── aggrega.svg     # app icon
