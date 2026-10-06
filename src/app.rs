@@ -1746,7 +1746,9 @@ mod tests {
     #[test]
     fn background_refreshes_skip_offline_and_stay_quiet() {
         let (ui, app, dir) = start("auto-refresh");
-        let shows = |label: &str| {
+        // The toast slides up from below the window, where it can't be found.
+        let toast_shows = |label: &str| {
+            testing::mock_elapsed_time(Duration::from_secs(1));
             ElementHandle::find_by_accessible_label(&ui, label)
                 .next()
                 .is_some()
@@ -1764,7 +1766,7 @@ mod tests {
         };
         app.refresh_done(Ok(nothing));
         assert!(!app.offline.get());
-        assert!(!shows("You're up to date"));
+        assert!(!toast_shows("You're up to date"));
 
         app.background.set(true);
         app.set_refreshing(true);
@@ -1772,13 +1774,13 @@ mod tests {
             new_articles: 2,
             ..nothing
         }));
-        assert!(shows("2 new articles"));
+        assert!(toast_shows("2 new articles"));
 
         // Asked for by hand, it always reports back.
         app.background.set(false);
         app.set_refreshing(true);
         app.refresh_done(Ok(nothing));
-        assert!(shows("You're up to date"));
+        assert!(toast_shows("You're up to date"));
         std::fs::remove_dir_all(dir).unwrap();
     }
 
