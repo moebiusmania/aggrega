@@ -15,10 +15,10 @@
 - **Unlimited sources.** RSS 0.9x/1.0/2.0, Atom and JSON Feed are all supported.
 - **Smart "Add source".** Paste a feed URL, or just a website such as `theverge.com`. Aggrega finds the feed from the page's `<link rel="alternate">` tags or from common paths like `/feed` and `/rss.xml`.
 - **OPML import and export.** Bring your subscriptions over from Feedly, Inoreader, NetNewsWire, Miniflux or any other reader: **Settings → Import & export**, or **Import from OPML** on the welcome screen. Folders are flattened, sources you already follow are skipped, and Aggrega tells you how many were added, skipped or couldn't be reached. Export writes every source to a standard OPML 2.0 file.
-- **Sync between computers.** Moving to another machine? Open **Settings → Sync** on both: each lists the other copies of Aggrega on the same network (or type the other computer's address, shown on its Sync tab). Pull from one and, after you confirm, its sources, articles and read state replace everything on this computer; your theme stays. It works between macOS and Linux. Nothing listens or announces itself unless the Sync tab is on screen, and the transfer is not encrypted, so use it on networks you trust.
+- **Sync between computers.** Moving to another machine? Open **Settings → Sync** on both: each lists the other copies of Aggrega on the same network (or type the other computer's address, shown on its Sync tab). Pull from one and, after you confirm, its sources, articles and read state replace everything on this computer; your theme and refresh interval stay. It works between macOS and Linux. Nothing listens or announces itself unless the Sync tab is on screen, and the transfer is not encrypted, so use it on networks you trust.
 - **Newest posts first.** The list merges every source into one feed sorted by date. You can also focus on a single source from the sidebar.
-- **Works offline.** Everything you've downloaded, including stories and thumbnails, stays readable without a connection. When no source can be reached, Aggrega says it's offline instead of flagging your sources as broken, and it retries on the next refresh.
-- **Refreshes on launch and on demand.** Cached articles show up immediately, and fresh ones are fetched in parallel in the background. Aggrega sends conditional requests (ETag / Last-Modified), so feeds that haven't changed cost almost nothing.
+- **Works offline.** Everything you've downloaded, including stories and thumbnails, stays readable without a connection. When no source can be reached, Aggrega says it's offline instead of flagging your sources as broken, and it retries the next time you refresh.
+- **Refreshes on launch, on demand and on its own.** Cached articles show up immediately, and fresh ones are fetched in parallel in the background. While Aggrega is open it refreshes again every 20 minutes, which you can change from 5 minutes to 2 hours in **Settings → Updates**. Background refreshes only toast when they find new stories, and they pause while you're offline until you refresh by hand. Aggrega sends conditional requests (ETag / Last-Modified), so feeds that haven't changed cost almost nothing.
 - **Unread highlighting.** Unread stories get a red dot before the kicker and a black-weight headline. Read ones drop to a lighter grey headline with a dimmed photo. Each source shows its unread count. The **Unread** tab is the default view; stories you read there slide out of the list right away. *All* shows everything, and *Mark all as read* clears the view.
 - **Reader view.** Clicking an article opens it inside Aggrega as a clean, single-column page with its headline, lead photo, text, quotes, lists and pictures, and marks it as read. When the feed only carries a summary, Aggrega fetches the article's page and pulls out the story, leaving menus, share bars and comments behind. The result is saved, so the story opens instantly next time, even offline. **Read on …** or `O` opens the original in your browser. Hover a story in the list to toggle read/unread without opening it.
 - **Thumbnails.** Thumbnails are pulled from the feed's media tags or the article's first image. They are shrunk and cached on disk, and they fade in without blocking the UI.
@@ -116,7 +116,7 @@ aggrega/
 │   ├── article-card.slint
 │   ├── reader.slint    # in-app reader view
 │   ├── dialogs.slint   # add-source, remove and sync confirmation modals
-│   ├── settings.slint  # settings modal (tabbed: Import & export, Sync, About)
+│   ├── settings.slint  # settings modal (tabbed: Import & export, Sync, Updates, About)
 │   └── icons/          # SVG icons
 ├── assets/
 │   ├── aggrega.svg     # app icon
@@ -129,7 +129,6 @@ aggrega/
 
 - More build targets: [Windows (#3)](https://github.com/moebiusmania/aggrega/issues/3), macOS polish ([#4](https://github.com/moebiusmania/aggrega/issues/4): title bar, `Cmd` shortcuts, signing), [AppImage (#5)](https://github.com/moebiusmania/aggrega/issues/5), [Flatpak (#6)](https://github.com/moebiusmania/aggrega/issues/6)
 - [Folders/categories (#8)](https://github.com/moebiusmania/aggrega/issues/8), [search (#9)](https://github.com/moebiusmania/aggrega/issues/9)
-- [Periodic background refresh (#10)](https://github.com/moebiusmania/aggrega/issues/10)
 - [Next/previous story from the reader (#11)](https://github.com/moebiusmania/aggrega/issues/11)
 
 ## Contributing

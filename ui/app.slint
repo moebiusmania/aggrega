@@ -63,6 +63,8 @@ export component AppWindow inherits Window {
     in property <bool> sync-busy;
     in property <string> sync-note;
     in property <bool> sync-note-error;
+    // Settings › Updates: minutes between background refreshes.
+    in property <int> refresh-minutes;
 
     // Reader view: the open article and its content blocks.
     in-out property <bool> reader-open: false;
@@ -105,6 +107,8 @@ export component AppWindow inherits Window {
     callback sync-active(bool);
     callback sync-connect(string);
     callback sync-confirmed();
+    // Settings › Updates stepper: true for a longer interval.
+    callback step-refresh-interval(bool);
 
     changed sync-open => { root.sync-active(self.sync-open); }
 
@@ -555,12 +559,14 @@ export component AppWindow inherits Window {
             sync-busy: root.sync-busy;
             sync-note: root.sync-note;
             sync-note-error: root.sync-note-error;
+            refresh-minutes: root.refresh-minutes;
             closed => { keys.focus(); }
             sync-connect(address) => { root.sync-connect(address); }
             import-sources => { root.import-sources(); }
             export-sources => { root.export-sources(); }
             open-link(url) => { root.open-link(url); }
             open-data-folder(thumbs) => { root.open-data-folder(thumbs); }
+            step-refresh-interval(longer) => { root.step-refresh-interval(longer); }
         }
 
         // Above the settings modal it's opened from.

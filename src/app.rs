@@ -27,6 +27,11 @@ const MAX_ARTICLES: usize = 400;
 /// (matches the fade + collapse in `ui/article-card.slint`).
 const LEAVE_ANIMATION: Duration = Duration::from_millis(560);
 
+/// Background refresh interval choices in minutes, offered by the stepper in
+/// Settings › Updates. Saved values are clamped to the first and last.
+const REFRESH_STEPS: [i64; 9] = [5, 10, 15, 20, 30, 45, 60, 90, 120];
+const DEFAULT_REFRESH_MINUTES: i64 = 20;
+
 thread_local! {
     /// The application state lives on the UI thread; worker threads reach it
     /// through `slint::invoke_from_event_loop` + `with_app`.
@@ -103,6 +108,12 @@ pub struct App {
     thumb_pending: RefCell<HashSet<SharedString>>,
     thumb_failed: RefCell<HashSet<SharedString>>,
     refreshing: Cell<bool>,
+    /// The running refresh was started by `auto_refresh`, so it stays quiet
+    /// unless it finds something.
+    background: Cell<bool>,
+    /// Fires every `refresh_minutes`, counted from the end of the last refresh.
+    auto_refresh: slint::Timer,
+    refresh_minutes: Cell<i64>,
     last_refresh: Cell<Option<i64>>,
     /// The last refresh couldn't reach any source.
     offline: Cell<bool>,
@@ -143,6 +154,11 @@ impl App {
         ui.set_thumbs_path(display_path(&paths.thumbs, home.as_deref()).into());
 
         let last_refresh = store.setting("last_refresh")?.and_then(|v| v.parse().ok());
+        let refresh_minutes = store
+            .setting("refresh_interval")?
+            .and_then(|v| v.parse().ok())
+            .map_or(DEFAULT_REFRESH_MINUTES, clamp_refresh_minutes);
+        ui.set_refresh_minutes(refresh_minutes as i32);
         let app = Rc::new(App {
             ui: ui.as_weak(),
             store,
@@ -155,6 +171,9 @@ impl App {
             thumb_pending: RefCell::default(),
             thumb_failed: RefCell::default(),
             refreshing: Cell::new(false),
+            background: Cell::new(false),
+            auto_refresh: slint::Timer::default(),
+            refresh_minutes: Cell::new(refresh_minutes),
             last_refresh: Cell::new(last_refresh),
             offline: Cell::new(false),
             reader_blocks,
@@ -172,6 +191,10 @@ impl App {
         APP.with(|cell| {
             let _ = cell.set(app.clone());
         });
+        app.auto_refresh
+            .start(slint::TimerMode::Repeated, minutes(refresh_minutes), || {
+                with_app(|a| a.auto_refresh())
+            });
         Ok(app)
     }
 
@@ -392,6 +415,18 @@ impl App {
     // ---- actions -----------------------------------------------------------
 
     pub fn refresh(&self) {
+        self.start_refresh(false);
+    }
+
+    /// Runs every `refresh_minutes`. Skipped while offline: only a refresh
+    /// the user asks for tries the network again.
+    fn auto_refresh(&self) {
+        if !self.offline.get() {
+            self.start_refresh(true);
+        }
+    }
+
+    fn start_refresh(&self, background: bool) {
         if self.refreshing.get() || self.pulling.get() {
             return;
         }
@@ -400,6 +435,7 @@ impl App {
             Ok(_) => return,
             Err(e) => return self.report("Couldn't start refresh", e),
         };
+        self.background.set(background);
         self.set_refreshing(true);
         let agent = self.agent.clone();
         let db_path = self.paths.db.clone();
@@ -429,16 +465,25 @@ impl App {
             let _ = self.store.set_setting("last_refresh", &t.to_string());
         }
         self.set_refreshing(false);
+        // The next automatic refresh is a full interval after this one.
+        self.auto_refresh.restart();
         self.reload_all();
         match summary {
+            // In the background, only news is worth a toast; the status line
+            // already tells when it last updated, or that it's offline.
+            Ok(s) if self.background.get() => {
+                if s.new_articles > 0 {
+                    self.toast(new_articles(s.new_articles));
+                }
+            }
+            Err(_) if self.background.get() => {}
             Ok(_) if offline => {
                 self.toast("You're offline  ·  showing your saved stories");
             }
             Ok(s) => {
                 let mut msg = match s.new_articles {
                     0 => "You're up to date".to_string(),
-                    1 => "1 new article".to_string(),
-                    n => format!("{n} new articles"),
+                    n => new_articles(n),
                 };
                 let problems = s.failed + s.unreachable;
                 if problems > 0 {
@@ -1098,6 +1143,27 @@ impl App {
         self.toast(msg);
     }
 
+    /// Settings › Updates stepper: the next longer or shorter interval.
+    pub fn step_refresh_interval(&self, longer: bool) {
+        let current = self.refresh_minutes.get();
+        let next = if longer {
+            REFRESH_STEPS.iter().copied().find(|&m| m > current)
+        } else {
+            REFRESH_STEPS.iter().rev().copied().find(|&m| m < current)
+        };
+        let Some(next) = next else { return };
+        self.refresh_minutes.set(next);
+        self.ui().set_refresh_minutes(next as i32);
+        // Restarts the countdown, so a new interval applies from now.
+        self.auto_refresh.set_interval(minutes(next));
+        if let Err(e) = self
+            .store
+            .set_setting("refresh_interval", &next.to_string())
+        {
+            self.report("Couldn't save the refresh interval", e);
+        }
+    }
+
     pub fn save_theme(&self, dark: bool) {
         let _ = self
             .store
@@ -1135,6 +1201,21 @@ impl ImportSummary {
 }
 
 /// "1 source", "3 sources".
+fn minutes(n: i64) -> Duration {
+    Duration::from_secs(n as u64 * 60)
+}
+
+fn clamp_refresh_minutes(n: i64) -> i64 {
+    n.clamp(REFRESH_STEPS[0], REFRESH_STEPS[REFRESH_STEPS.len() - 1])
+}
+
+fn new_articles(n: usize) -> String {
+    match n {
+        1 => "1 new article".into(),
+        n => format!("{n} new articles"),
+    }
+}
+
 fn count(n: usize, noun: &str) -> String {
     format!("{n} {noun}{}", if n == 1 { "" } else { "s" })
 }
@@ -1615,6 +1696,89 @@ mod tests {
         assert!(running());
         button("Close settings").invoke_accessible_default_action();
         assert!(!running());
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn refresh_interval_steps_between_limits_and_is_saved() {
+        let (ui, app, dir) = start("interval");
+        let button = |label: &str| {
+            ElementHandle::find_by_accessible_label(&ui, label)
+                .next()
+                .unwrap_or_else(|| panic!("{label} button"))
+        };
+        let shows = |label: &str| {
+            ElementHandle::find_by_accessible_label(&ui, label)
+                .next()
+                .is_some()
+        };
+        let saved = || app.store.setting("refresh_interval").unwrap();
+        assert_eq!(ui.get_refresh_minutes(), 20, "default");
+        assert_eq!(app.auto_refresh.interval(), Duration::from_secs(20 * 60));
+        assert_eq!(saved(), None);
+
+        button("Settings").invoke_accessible_default_action();
+        testing::mock_elapsed_time(Duration::from_secs(1));
+        button("Updates").invoke_accessible_default_action();
+        assert!(shows("Fresh stories, on their own"));
+        assert!(shows("Refresh every 20 minutes"));
+
+        button("Refresh less often").invoke_accessible_default_action();
+        assert!(shows("Refresh every 30 minutes"));
+        assert_eq!(saved().as_deref(), Some("30"));
+        assert_eq!(app.auto_refresh.interval(), Duration::from_secs(30 * 60));
+        for _ in 0..10 {
+            button("Refresh less often").invoke_accessible_default_action();
+        }
+        assert_eq!(ui.get_refresh_minutes(), 120, "at most two hours");
+        for _ in 0..10 {
+            button("Refresh more often").invoke_accessible_default_action();
+        }
+        assert_eq!(ui.get_refresh_minutes(), 5, "at least five minutes");
+        assert_eq!(saved().as_deref(), Some("5"));
+
+        // Saved values outside the range are pulled back into it.
+        assert_eq!(clamp_refresh_minutes(1), 5);
+        assert_eq!(clamp_refresh_minutes(600), 120);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn background_refreshes_skip_offline_and_stay_quiet() {
+        let (ui, app, dir) = start("auto-refresh");
+        let shows = |label: &str| {
+            ElementHandle::find_by_accessible_label(&ui, label)
+                .next()
+                .is_some()
+        };
+        app.offline.set(true);
+        testing::mock_elapsed_time(Duration::from_secs(21 * 60));
+        assert!(!app.refreshing.get(), "skipped while offline");
+
+        // Nothing new: the status line is enough.
+        app.background.set(true);
+        app.set_refreshing(true);
+        let nothing = RefreshSummary {
+            total: 1,
+            ..Default::default()
+        };
+        app.refresh_done(Ok(nothing));
+        assert!(!app.offline.get());
+        assert!(!shows("You're up to date"));
+
+        app.background.set(true);
+        app.set_refreshing(true);
+        app.refresh_done(Ok(RefreshSummary {
+            new_articles: 2,
+            ..nothing
+        }));
+        assert!(shows("2 new articles"));
+
+        // Asked for by hand, it always reports back.
+        app.background.set(false);
+        app.set_refreshing(true);
+        app.refresh_done(Ok(nothing));
+        assert!(shows("You're up to date"));
         std::fs::remove_dir_all(dir).unwrap();
     }
 
