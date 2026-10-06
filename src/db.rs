@@ -13,6 +13,10 @@ use crate::opml::Source;
 
 pub const SCHEMA_VERSION: i32 = 2;
 
+/// Settings that belong to this computer, kept when a sync pull replaces
+/// the database.
+const LOCAL_SETTINGS: [&str; 2] = ["theme", "refresh_interval"];
+
 pub struct Store {
     conn: Connection,
 }
@@ -390,7 +394,8 @@ impl Store {
 
     /// Replaces everything in this database with the snapshot at `path`
     /// (from `snapshot_to`, possibly on another computer), keeping only this
-    /// computer's theme. Other connections see the new contents right away.
+    /// computer's `LOCAL_SETTINGS`. Other connections see the new contents
+    /// right away.
     pub fn replace_with(&mut self, path: &Path) -> Result<()> {
         let src = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
         let check: String = src
@@ -413,17 +418,22 @@ impl Store {
             bail!("not an Aggrega database");
         }
 
-        let theme = self.setting("theme")?;
+        let local = LOCAL_SETTINGS
+            .iter()
+            .map(|key| Ok((*key, self.setting(key)?)))
+            .collect::<Result<Vec<_>>>()?;
         // One step copies every page under a single lock, so readers never
         // see a half-replaced database.
         Backup::new(&src, &mut self.conn)?.step(-1)?;
         drop(src);
         self.migrate()?;
-        match theme {
-            Some(t) => self.set_setting("theme", &t)?,
-            None => {
-                self.conn
-                    .execute("DELETE FROM settings WHERE key = 'theme'", [])?;
+        for (key, value) in local {
+            match value {
+                Some(v) => self.set_setting(key, &v)?,
+                None => {
+                    self.conn
+                        .execute("DELETE FROM settings WHERE key = ?1", [key])?;
+                }
             }
         }
         Ok(())
@@ -593,6 +603,7 @@ mod tests {
         theirs.set_read(first, true)?;
         theirs.set_setting("theme", "dark")?;
         theirs.set_setting("last_refresh", "123")?;
+        theirs.set_setting("refresh_interval", "60")?;
         assert_eq!(
             theirs.stats()?,
             Stats {
@@ -618,6 +629,7 @@ mod tests {
             Some("light"),
             "theme stays"
         );
+        assert_eq!(ui.setting("refresh_interval")?, None, "interval stays");
         let mode: String = ui.conn.query_row("PRAGMA journal_mode", [], |r| r.get(0))?;
         assert_eq!(mode, "wal");
         // Still writable through either connection.
