@@ -16,7 +16,7 @@ cargo fmt --check && cargo clippy -- -D warnings   # lint (= make lint)
 AGGREGA_HOME=/tmp/agg cargo run   # throwaway profile (db + thumbs in one dir, any OS)
 ```
 
-CI (`.github/workflows/ci.yml`) runs `cargo test --locked` in an `archlinux` container on every branch push. It does not run fmt/clippy, so run `make lint` yourself. Pushing a `vX.Y.Z` tag triggers `release.yml`, which rewrites the `Cargo.toml` version from the tag and uploads a tarball artifact.
+CI (`.github/workflows/ci.yml`) runs `cargo test --locked` in an `archlinux` container on pushes to `main` (except ones touching only `public/`) and on every PR. It does not run fmt/clippy, so run `make lint` yourself. The landing page in `public/` (static HTML/CSS/JS, `make site` to preview) is deployed by `pages.yml` on pushes to `main` that touch it. Pushing a `vX.Y.Z` tag triggers `release.yml`, which rewrites the `Cargo.toml` version from the tag and uploads a tarball artifact.
 
 ## Architecture
 

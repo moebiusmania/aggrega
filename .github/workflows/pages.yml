@@ -1,0 +1,41 @@
+# Publishes the landing page (public/) to GitHub Pages when it changes on main.
+# Static files only: nothing is built, and the app's CI and release builds don't run.
+# Requires Settings → Pages → Source: "GitHub Actions".
+name: Deploy landing page
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "public/**"
+  # Redeploy by hand (Actions tab, or `gh workflow run pages.yml`); main only, see below.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deploy at a time, and never cancel one halfway.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    # A manual run can pick any branch; only main gets published.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: public
+
+      - id: deployment
+        uses: actions/deploy-pages@v5
