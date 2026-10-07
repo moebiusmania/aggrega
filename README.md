@@ -88,6 +88,7 @@ On Linux, both paths honour `XDG_DATA_HOME` / `XDG_CACHE_HOME`. Setting `AGGREGA
 - [docs/BUILDING.md](docs/BUILDING.md): prerequisites, dev and release builds, tests, packaging, troubleshooting
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): how the code is organised, the threading model, the storage schema and performance notes
 - [CONTRIBUTING.md](CONTRIBUTING.md): how to report bugs, propose changes and open a pull request
+- `public/`: the landing page (plain HTML, CSS and JS, no build step). `make site` serves it at <http://localhost:8000> with Deno
 
 ## Project layout
 
