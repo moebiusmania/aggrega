@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Aggrega · Your feeds, one edition</title>
+  <meta name="description" content="Aggrega is a fast, local-first desktop feed reader for RSS, Atom and JSON Feed. No account, no ads, no tracking, no telemetry, and it works offline.">
+  <meta name="color-scheme" content="light dark">
+  <meta name="theme-color" content="#f7f4ee" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#131211" media="(prefers-color-scheme: dark)">
+  <link rel="canonical" href="https://moebiusmania.github.io/aggrega/">
+
+  <!-- Icons -->
+  <link rel="icon" href="favicon.ico" sizes="32x32">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="apple-touch-icon.png">
+  <link rel="manifest" href="site.webmanifest">
+
+  <!-- Social cards -->
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="Aggrega">
+  <meta property="og:title" content="Aggrega · Your feeds, one edition">
+  <meta property="og:description" content="A fast, local-first desktop feed reader. No account, no ads, no tracking, no telemetry, and it works offline.">
+  <meta property="og:url" content="https://moebiusmania.github.io/aggrega/">
+  <meta property="og:image" content="https://moebiusmania.github.io/aggrega/images/social-preview.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:image:alt" content="The Aggrega masthead next to a screenshot of the app, with the words: no account, no ads, no tracking, no telemetry, works offline.">
+  <meta property="og:locale" content="en_US">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="Aggrega · Your feeds, one edition">
+  <meta name="twitter:description" content="A fast, local-first desktop feed reader. No account, no ads, no tracking, no telemetry, and it works offline.">
+  <meta name="twitter:image" content="https://moebiusmania.github.io/aggrega/images/social-preview.png">
+  <meta name="twitter:image:alt" content="The Aggrega masthead next to a screenshot of the app.">
+
+  <link rel="preload" href="fonts/source-serif-4-900-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="fonts/libre-franklin-800-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    // Apply a saved theme before first paint, so there's no flash.
+    try {
+      const t = localStorage.getItem("aggrega-theme");
+      if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+    } catch {}
+  </script>
+  <script src="main.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#main">Skip to content</a>
+
+  <header class="topbar">
+    <div class="topbar__inner">
+      <a class="masthead" href="#top" aria-label="Aggrega, back to top">
+        <span class="masthead__name">Aggrega</span>
+        <span class="masthead__tag">Your feeds · One edition</span>
+      </a>
+      <nav class="nav" aria-label="Sections">
+        <a href="#privacy">Privacy</a>
+        <a href="#features">Features</a>
+        <a href="#download">Download</a>
+        <a href="https://github.com/moebiusmania/aggrega" rel="noopener">GitHub</a>
+      </nav>
+      <button class="theme-switch" type="button" aria-label="Dark theme" aria-pressed="false">
+        <span class="theme-switch__knob">
+          <svg class="i-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+          <svg class="i-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.1A8.5 8.5 0 1 1 9.9 3.5a6.6 6.6 0 0 0 10.6 10.6z"/></svg>
+        </span>
+      </button>
+    </div>
+  </header>
+
+  <main id="main">
+    <!-- Front page: the app's opening sequence, set in type. -->
+    <section class="front" id="top" aria-labelledby="front-title">
+      <p class="dateline" data-today>First edition</p>
+      <h1 class="front__wordmark" id="front-title"><span>Aggrega</span></h1>
+      <div class="front__rule" aria-hidden="true"></div>
+      <p class="front__tag">Your feeds · One edition</p>
+      <p class="front__deck">A fast, local-first desktop feed reader with the calm of a morning paper. It runs entirely on your computer and minds its own business.</p>
+      <ul class="pledges" aria-label="Privacy at a glance">
+        <li>No account</li>
+        <li>No ads</li>
+        <li>No tracking</li>
+        <li>No telemetry</li>
+        <li>Works offline</li>
+      </ul>
+      <div class="actions">
+        <a class="btn btn--primary" href="#download">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg>
+          Get Aggrega
+        </a>
+        <a class="btn btn--ghost" href="https://github.com/moebiusmania/aggrega" rel="noopener">View the source</a>
+      </div>
+      <p class="front__meta">Free and open source · MIT · Linux &amp; macOS</p>
+
+      <figure class="window">
+        <div class="window__frame">
+          <img class="shot shot--light" src="images/app-light.webp" width="1240" height="820" alt="Aggrega in the light theme: a sidebar of sources on the left and a newspaper-style list of articles with a lead story." fetchpriority="high">
+          <img class="shot shot--dark" src="images/app-dark.webp" width="1240" height="820" alt="Aggrega in the dark theme." loading="lazy">
+        </div>
+      </figure>
+    </section>
+
+    <!-- Privacy: the lead story. -->
+    <section class="section privacy" id="privacy" aria-labelledby="privacy-title">
+      <header class="section__head">
+        <p class="dateline">The privacy edition</p>
+        <h2 class="section__title" id="privacy-title">Nothing to report</h2>
+        <p class="section__sub">Aggrega reads the news. It doesn't make any about you.</p>
+      </header>
+
+      <article class="lead">
+        <div class="lead__text">
+          <p class="kicker kicker--accent">Lead story</p>
+          <h3 class="lead__title">No telemetry. Not a single ping.</h3>
+          <p class="lead__deck">There is no telemetry, tracking or analytics code in Aggrega. Not opt-in, not anonymised, not “just crash reports.” It doesn't phone home, doesn't check in, and doesn't count you.</p>
+          <p class="byline"><span class="dot" aria-hidden="true"></span><span class="source" style="--src: var(--src-blue)">Product guarantee</span> since day one</p>
+        </div>
+        <div class="ledger" role="group" aria-labelledby="ledger-title">
+          <p class="ledger__title" id="ledger-title">Everything Aggrega sends over the network</p>
+          <ul class="ledger__list">
+            <li><span>Requests for the feeds you subscribed to</span><span class="ledger__ok">Yes</span></li>
+            <li><span>Thumbnails and articles from those feeds</span><span class="ledger__ok">Yes</span></li>
+            <li><span>Other copies of Aggrega on your LAN, only while <em>Settings → Sync</em> is open</span><span class="ledger__ok">Yes</span></li>
+            <li><span>Usage statistics, crash reports, update checks</span><span class="ledger__no">Never</span></li>
+            <li><span>Ad networks, analytics, “partners”</span><span class="ledger__no">Never</span></li>
+            <li><span>An Aggrega server of any kind</span><span class="ledger__no">There isn't one</span></li>
+          </ul>
+        </div>
+      </article>
+
+      <div class="stories">
+        <article class="story">
+          <p class="kicker" style="--src: var(--src-forest)">No account</p>
+          <h3 class="story__title">No sign-up, no login, no cloud.</h3>
+          <p class="story__body">Open it and start reading. Your subscriptions, articles and read state live in a single SQLite file on your own disk, and nowhere else.</p>
+        </article>
+        <article class="story">
+          <p class="kicker" style="--src: var(--src-plum)">No tracking</p>
+          <h3 class="story__title">Nobody is watching you read.</h3>
+          <p class="story__body">No identifiers, no fingerprinting, no reading history leaving your machine. The only party that sees a request is the site you subscribed to.</p>
+        </article>
+        <article class="story">
+          <p class="kicker" style="--src: var(--src-ochre)">No ads</p>
+          <h3 class="story__title">The only thing on the page is the story.</h3>
+          <p class="story__body">No sponsored posts, no promoted sources, no upsell. The reader view strips menus, share bars and comment widgets out of the page too.</p>
+        </article>
+        <article class="story">
+          <p class="kicker" style="--src: var(--src-teal)">Works offline</p>
+          <h3 class="story__title">Read on the train. Or the plane.</h3>
+          <p class="story__body">Stories and thumbnails you've downloaded stay readable with no connection. Offline, Aggrega says so instead of flagging your sources as broken, and catches up when you're back.</p>
+        </article>
+      </div>
+
+      <aside class="colophon-note">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        <p>This page practises what it preaches: no cookies, no analytics, and no third-party requests. Even the fonts are served from here.</p>
+      </aside>
+    </section>
+
+    <!-- Data lives with you. -->
+    <section class="section data" aria-labelledby="data-title">
+      <header class="section__head">
+        <p class="dateline">Where is my data?</p>
+        <h2 class="section__title" id="data-title">On your disk</h2>
+        <p class="section__sub">Two folders. That's all of it. Delete them and Aggrega forgets everything.</p>
+      </header>
+      <div class="table-wrap">
+        <table class="paths">
+          <thead>
+            <tr><th scope="col">What</th><th scope="col">Linux</th><th scope="col">macOS</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <th scope="row">Subscriptions, articles, read state, settings</th>
+              <td><code>~/.local/share/aggrega/aggrega.db</code></td>
+              <td><code>~/Library/Application Support/aggrega/aggrega.db</code></td>
+            </tr>
+            <tr>
+              <th scope="row">Thumbnail cache <span class="muted">(safe to delete)</span></th>
+              <td><code>~/.cache/aggrega/thumbs/</code></td>
+              <td><code>~/Library/Caches/aggrega/thumbs/</code></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p class="fineprint">Moving to another computer? <strong>Settings → Sync</strong> pulls another machine's database straight over your local network, between macOS and Linux. Nothing listens or announces itself unless the Sync tab is on screen. <strong>OPML</strong> import and export work with Feedly, Inoreader, NetNewsWire, Miniflux and every other reader.</p>
+    </section>
+
+    <!-- Features -->
+    <section class="section" id="features" aria-labelledby="features-title">
+      <header class="section__head">
+        <p class="dateline">Inside this edition</p>
+        <h2 class="section__title" id="features-title">A proper reader</h2>
+        <p class="section__sub">Small, quick and quiet, with a design borrowed from the newsroom.</p>
+      </header>
+
+      <div class="features">
+        <article class="feature">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 11a8 8 0 0 1 8 8"/><path d="M5 4.5a14.5 14.5 0 0 1 14.5 14.5"/><circle cx="6" cy="18" r="1.6" class="fill"/></svg>
+          <h3>Every format</h3>
+          <p>RSS 0.9x, 1.0 and 2.0, Atom and JSON Feed, from as many sources as you like.</p>
+        </article>
+        <article class="feature">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 14a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1 1"/><path d="M14 10a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1-1"/></svg>
+          <h3>Smart “Add source”</h3>
+          <p>Paste a feed URL, or just <code>theverge.com</code>. Aggrega finds the feed for you.</p>
+        </article>
+        <article class="feature">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+          <h3>Reader view</h3>
+          <p>A clean single column with headline, photo and text. Summary-only feeds get the full story pulled in, and it's saved for offline.</p>
+        </article>
+        <article class="feature">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a9 9 0 1 1-2.64-6.36L21 8"/><path d="M21 3v5h-5"/></svg>
+          <h3>Refreshes politely</h3>
+          <p>In parallel, in the background, on your schedule. Conditional requests mean unchanged feeds cost almost nothing.</p>
+        </article>
+        <article class="feature">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 3L4 7l4 4"/><path d="M4 7h16"/><path d="M16 21l4-4-4-4"/><path d="M20 17H4"/></svg>
+          <h3>LAN sync &amp; OPML</h3>
+          <p>Bring your subscriptions from any reader, and move them between computers without a cloud in between.</p>
+        </article>
+        <article class="feature">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.5 14.1A8.5 8.5 0 1 1 9.9 3.5a6.6 6.6 0 0 0 10.6 10.6z"/></svg>
+          <h3>Light &amp; dark</h3>
+          <p>Newsprint paper or late-edition ink. Follows your desktop, or pick one and it remembers.</p>
+        </article>
+        <article class="feature">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg>
+          <h3>Light on resources</h3>
+          <p>One native Rust binary. No browser engine inside, and zero CPU while it sits idle.</p>
+        </article>
+        <article class="feature">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2 12.5l4.5 4.5L16 7.5"/><path d="M11.5 16.5l.5.5L21.5 7.5"/></svg>
+          <h3>Keyboard friendly</h3>
+          <p><kbd>F5</kbd> to refresh, <kbd>O</kbd> to open the original, <kbd>M</kbd> to mark read, <kbd>Esc</kbd> to go back.</p>
+        </article>
+      </div>
+
+      <figure class="spotlight">
+        <img src="images/add-source.webp" width="744" height="492" alt="The Add source dialog, with a field for a website or feed address." loading="lazy">
+        <figcaption>
+          <p class="kicker" style="--src: var(--src-rust)">Add source</p>
+          <p class="spotlight__title">Just type the website.</p>
+          <p>Aggrega looks for the feed in the page's <code>&lt;link rel="alternate"&gt;</code> tags or at common paths like <code>/feed</code> and <code>/rss.xml</code>. Coming from another reader? <strong>Import from OPML</strong> is right on the welcome screen.</p>
+        </figcaption>
+      </figure>
+    </section>
+
+    <!-- Download -->
+    <section class="section download" id="download" aria-labelledby="download-title">
+      <header class="section__head">
+        <p class="dateline">Get your copy</p>
+        <h2 class="section__title" id="download-title">Free, open, yours</h2>
+        <p class="section__sub">MIT licensed. No account to create before you can try it.</p>
+      </header>
+
+      <div class="platforms">
+        <article class="platform">
+          <p class="kicker" style="--src: var(--src-blue)">Arch Linux</p>
+          <h3 class="platform__title">Build it in a minute</h3>
+          <div class="code">
+            <pre><code>sudo pacman -S --needed base-devel rustup fontconfig freetype2 libxkbcommon wayland libglvnd
+rustup default stable
+git clone https://github.com/moebiusmania/aggrega
+cd aggrega/packaging/arch &amp;&amp; makepkg -si</code></pre>
+            <button class="copy" type="button" aria-label="Copy commands">Copy</button>
+          </div>
+          <p class="platform__note">Installs a proper package with a launcher entry and icon. Other distros: see <a href="https://github.com/moebiusmania/aggrega/blob/main/docs/BUILDING.md">the build guide</a>.</p>
+        </article>
+        <article class="platform">
+          <p class="kicker" style="--src: var(--src-claret)">macOS</p>
+          <h3 class="platform__title">Apple silicon, macOS 11+</h3>
+          <p>Each release builds <code>Aggrega.app</code> as a disk image. The app isn't notarized, so the first launch needs <strong>Open Anyway</strong> under <em>System Settings → Privacy &amp; Security</em>.</p>
+          <div class="actions actions--start">
+            <a class="btn btn--primary" href="https://github.com/moebiusmania/aggrega/actions/workflows/release.yml" rel="noopener">Latest builds</a>
+            <a class="btn btn--ghost" href="https://github.com/moebiusmania/aggrega/blob/main/docs/BUILDING.md#6-macos" rel="noopener">Build it yourself</a>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="footer__inner">
+      <div class="footer__brand">
+        <span class="masthead__name">Aggrega</span>
+        <span class="masthead__tag">That's the edition</span>
+      </div>
+      <p>Released under the <a href="https://github.com/moebiusmania/aggrega/blob/main/LICENSE">MIT License</a>. Built with Rust and <a href="https://slint.dev" rel="noopener">Slint</a>. Set in Source Serif 4 and Libre Franklin (<a href="fonts/OFL.txt">SIL OFL 1.1</a>).</p>
+      <p><a href="https://github.com/moebiusmania/aggrega">GitHub</a> · <a href="https://github.com/moebiusmania/aggrega/issues">Report an issue</a> · <a href="https://github.com/moebiusmania/aggrega/blob/main/CONTRIBUTING.md">Contribute</a></p>
+    </div>
+  </footer>
+</body>
+</html>

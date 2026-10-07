@@ -2,7 +2,7 @@
 PREFIX ?= $(HOME)/.local
 BIN     = target/release/aggrega
 
-.PHONY: run dev release test lint install uninstall package macos-app clean
+.PHONY: run dev release test lint install uninstall package macos-app site clean
 
 run: release
 	./$(BIN)
@@ -35,6 +35,10 @@ package:
 
 macos-app:
 	packaging/macos/bundle.sh
+
+# Landing page (public/), served locally; published as GitHub Pages.
+site:
+	deno run --allow-net --allow-read=public jsr:@std/http/file-server --port 8000 public
 
 clean:
 	cargo clean
