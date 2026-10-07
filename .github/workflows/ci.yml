@@ -1,11 +1,15 @@
 # Runs the lints and the test suite on pushes to main and on every pull request
 # (including ones from forks). Tags are left to release.yml.
+# Pushes that only touch the landing page (public/) skip it; pages.yml deploys those.
+# PRs always run it, since `test` is a required check on main.
 name: CI
 
 on:
   push:
     branches:
       - main
+    paths-ignore:
+      - "public/**"
   pull_request:
 
 permissions:
