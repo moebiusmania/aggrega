@@ -23,13 +23,13 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  # Upload and deploy run as separate jobs (GitHub's own Pages template): deploying in the
+  # same job as the upload can query the artifact before it is listed, and re-running the
+  # job then uploads a second "github-pages" artifact that deploy-pages refuses.
+  build:
     # A manual run can pick any branch; only main gets published.
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v7
 
@@ -37,5 +37,12 @@ jobs:
         with:
           path: public
 
+  deploy:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - id: deployment
         uses: actions/deploy-pages@v5
