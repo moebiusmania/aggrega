@@ -185,10 +185,10 @@ jobs:
           upload-artifact: false
 
       - name: Check version
-        # Runs the built app inside its sandbox, against the 25.08 runtime.
+        # Runs the built app inside its sandbox. `flatpak build` rather than
+        # `flatpak-builder --run`, which needs rofiles-fuse (unavailable here).
         run: |
-          out="$(flatpak-builder --run flatpak_app \
-            packaging/flatpak/io.github.moebiusmania.Aggrega.yml aggrega --version)"
+          out="$(flatpak build flatpak_app aggrega --version)"
           test "$out" = "aggrega $VERSION"
 
       - uses: actions/upload-artifact@v7
