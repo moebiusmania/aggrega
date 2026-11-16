@@ -95,7 +95,7 @@ const STRINGS = {
     "dl.sub": "Licenza MIT. Nessun account da creare prima di provarlo.",
     "dl.arch.title": "Compilalo in un minuto",
     "dl.copy.label": "Copia i comandi",
-    "dl.arch.note": "Installa un vero pacchetto con voce nel launcher e icona. Altre distribuzioni: scarica l'AppImage o il Flatpak dall'<a href=\"https://github.com/moebiusmania/aggrega/releases/latest\">ultima release</a>.",
+    "dl.arch.note": "Installa un vero pacchetto con voce nel launcher e icona. Altre distribuzioni: scarica l'AppImage o il Flatpak dall'<a href=\"https://github.com/moebiusmania/aggrega/releases\">ultima release</a>.",
     "dl.mac.title": "Apple silicon, macOS 11+",
     "dl.mac.body": "Ogni release produce <code>Aggrega.app</code> in un'immagine disco. L'app non è notarizzata, quindi al primo avvio serve <strong>Apri comunque</strong> in <em>Impostazioni di Sistema → Privacy e sicurezza</em>.",
     "dl.mac.latest": "Ultima release",

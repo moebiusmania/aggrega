@@ -1,26 +1,59 @@
 # Whenever a version tag (v0.0.1, v1.2.3, v1.0.0-rc1, ...) is pushed, builds
 # every platform (Arch tarball, AppImage, Flatpak, macOS dmg, Windows zip) and,
 # once all of them succeeded, publishes a GitHub Release with the files attached.
+#
 # The tag is the only source of truth for the version: the repository keeps the
-# placeholder 0.0.0-dev, and every job stamps the tag's version into Cargo.toml
-# and Cargo.lock (packaging/set-version.sh) before building, so
+# placeholder 0.0.0-dev, and every build job stamps the tag's version into
+# Cargo.toml and Cargo.lock (packaging/set-version.sh) before building, so
 # `CARGO_PKG_VERSION` (sidebar, About tab, `--version`) matches the tag; every
 # job checks `aggrega --version` against it.
+#
+# Pull requests that touch the packaging, and manual runs (Actions → Release
+# build → Run workflow), build everything with the version 0.0.0-ci and publish
+# nothing, so the pipeline can be tested without spending a version number.
 name: Release build
 
 on:
   push:
     tags:
       - "v[0-9]+.[0-9]+.[0-9]+*"
+  pull_request:
+    paths:
+      - ".github/workflows/release.yml"
+      - "packaging/**"
+  workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
+  version:
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Version from the tag
+        id: version
+        env:
+          REF: ${{ github.ref }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          case "$REF" in
+            refs/tags/v*) version="${REF_NAME#v}" ;;
+            *) version=0.0.0-ci ;;
+          esac
+          # Same rule as packaging/set-version.sh; checked here too, since the
+          # value ends up in file names and job outputs.
+          printf '%s\n' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
   build-arch:
+    needs: version
     # Pinned: the job runs in a container, so the host image only needs to be stable.
     runs-on: ubuntu-24.04
     container: archlinux:latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
     steps:
       - name: Install build dependencies
         run: |
@@ -34,44 +67,143 @@ jobs:
 
       - uses: actions/checkout@v7
 
-      - name: Set version from tag
-        id: version
-        run: |
-          version="${GITHUB_REF_NAME#v}"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          packaging/set-version.sh "$version"
-
-      - uses: Swatinem/rust-cache@v2
+      - name: Set version
+        run: packaging/set-version.sh "$VERSION"
 
       - name: Build
         run: cargo build --release --locked
 
       - name: Check version
         # The binary (sidebar, About tab) must report the tag's version.
-        run: test "$(target/release/aggrega --version)" = "aggrega ${{ steps.version.outputs.version }}"
+        run: test "$(target/release/aggrega --version)" = "aggrega $VERSION"
 
       - name: Package
-        id: package
         run: |
-          name="aggrega-${{ steps.version.outputs.version }}-x86_64"
+          name="aggrega-$VERSION-x86_64"
           mkdir -p "dist/$name"
           install -m755 target/release/aggrega "dist/$name/aggrega"
           install -m644 packaging/aggrega.desktop assets/aggrega.svg README.md LICENSE assets/fonts/OFL.txt "dist/$name/"
           # A tarball keeps the executable bit.
           tar -C dist -czf "dist/$name.tar.gz" "$name"
-          echo "name=$name" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v7
         with:
           # Upload the tarball as-is (no zip wrapper); the artifact takes the file's name.
           archive: false
-          path: dist/${{ steps.package.outputs.name }}.tar.gz
+          path: dist/aggrega-${{ env.VERSION }}-x86_64.tar.gz
+          if-no-files-found: error
+
+  build-appimage:
+    needs: version
+    # Portable x86_64 AppImage. Built on the oldest supported Ubuntu so it runs
+    # on any distribution with glibc 2.35 or newer (the Arch tarball needs
+    # Arch's current glibc).
+    runs-on: ubuntu-22.04
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          # desktop-file-utils: appimagetool validates the .desktop file.
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libfontconfig1-dev libfreetype6-dev libxkbcommon-dev \
+            libwayland-dev libgl-dev libx11-dev libxcursor-dev libxi-dev libxrandr-dev \
+            desktop-file-utils
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+
+      - uses: actions/checkout@v7
+
+      - name: Set version
+        run: packaging/set-version.sh "$VERSION"
+
+      - name: Build
+        run: cargo build --release --locked
+
+      - name: Bundle
+        run: packaging/appimage/build.sh
+
+      - name: Check version
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: test "$("dist/aggrega-$VERSION-x86_64.AppImage" --version)" = "aggrega $VERSION"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          archive: false
+          path: dist/aggrega-${{ env.VERSION }}-x86_64.AppImage
+          if-no-files-found: error
+
+  flatpak-sources:
+    # The crates the Flatpak build vendors offline, generated from Cargo.lock.
+    # A separate job keeps the generator's Python dependencies out of the
+    # Flatpak container.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Generate cargo-sources.json
+        run: packaging/flatpak/cargo-sources.sh
+
+      - uses: actions/upload-artifact@v7
+        with:
+          # Doesn't match publish's `aggrega-*` pattern, so it isn't released.
+          name: flatpak-cargo-sources
+          path: packaging/flatpak/cargo-sources.json
+          if-no-files-found: error
+
+  build-flatpak:
+    needs: [version, flatpak-sources]
+    runs-on: ubuntu-24.04
+    container:
+      # Flathub's image with flatpak-builder and the 25.08 runtime + SDK.
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
+      options: --privileged
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set version
+        run: packaging/set-version.sh "$VERSION"
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: flatpak-cargo-sources
+          path: packaging/flatpak
+
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: packaging/flatpak/io.github.moebiusmania.Aggrega.yml
+          bundle: aggrega-${{ env.VERSION }}-x86_64.flatpak
+          build-dir: flatpak_app
+          # A tag run's cache can't be restored by the next tag; don't spend
+          # the repository's cache quota on it.
+          cache: false
+          upload-artifact: false
+
+      - name: Check version
+        # Runs the built app inside its sandbox, against the 25.08 runtime.
+        run: |
+          out="$(flatpak-builder --disable-rofiles-fuse --run flatpak_app \
+            packaging/flatpak/io.github.moebiusmania.Aggrega.yml aggrega --version)"
+          test "$out" = "aggrega $VERSION"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          archive: false
+          path: aggrega-${{ env.VERSION }}-x86_64.flatpak
           if-no-files-found: error
 
   build-macos:
+    needs: version
     # Apple silicon (arm64) Aggrega.app in a .dmg. Unsigned apart from an
     # ad-hoc signature, so Gatekeeper asks on first launch (see docs/BUILDING.md).
     runs-on: macos-latest
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
     steps:
       - uses: actions/checkout@v7
 
@@ -83,24 +215,19 @@ jobs:
           # rsvg-convert renders the .icns sizes from assets/aggrega.svg.
           brew install librsvg
 
-      - name: Set version from tag
-        id: version
-        run: |
-          version="${GITHUB_REF_NAME#v}"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          packaging/set-version.sh "$version"
-
-      - uses: Swatinem/rust-cache@v2
+      - name: Set version
+        run: packaging/set-version.sh "$VERSION"
 
       - name: Build and bundle
         run: packaging/macos/bundle.sh
 
       - name: Check version and name
         run: |
-          test "$(dist/Aggrega.app/Contents/MacOS/aggrega --version)" = "aggrega ${{ steps.version.outputs.version }}"
+          test "$(dist/Aggrega.app/Contents/MacOS/aggrega --version)" = "aggrega $VERSION"
           plist=dist/Aggrega.app/Contents/Info.plist
+          # Bundle versions are numeric only (1.0.0-rc1 → 1.0.0).
           for key in CFBundleShortVersionString CFBundleVersion; do
-            test "$(/usr/libexec/PlistBuddy -c "Print $key" "$plist")" = "${{ steps.version.outputs.version }}"
+            test "$(/usr/libexec/PlistBuddy -c "Print $key" "$plist")" = "${VERSION%%-*}"
           done
           for key in CFBundleName CFBundleDisplayName; do
             test "$(/usr/libexec/PlistBuddy -c "Print $key" "$plist")" = Aggrega
@@ -109,10 +236,11 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           archive: false
-          path: dist/aggrega-${{ steps.version.outputs.version }}-macos-arm64.dmg
+          path: dist/aggrega-${{ env.VERSION }}-macos-arm64.dmg
           if-no-files-found: error
 
   build-windows:
+    needs: version
     # x86_64 aggrega.exe (MSVC toolchain, icon embedded by build.rs) in a zip.
     # Unsigned, so SmartScreen warns on first launch (see docs/BUILDING.md).
     runs-on: windows-latest
@@ -120,153 +248,51 @@ jobs:
       run:
         # Git Bash, so the steps read like the other jobs'.
         shell: bash
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
     steps:
       - uses: actions/checkout@v7
 
       - name: Install Rust toolchain
         run: rustup toolchain install stable --profile minimal && rustup default stable
 
-      - name: Set version from tag
-        id: version
-        run: |
-          version="${GITHUB_REF_NAME#v}"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          packaging/set-version.sh "$version"
-
-      - uses: Swatinem/rust-cache@v2
+      - name: Set version
+        # .gitattributes keeps Cargo.toml/Cargo.lock and the script LF even
+        # with the runner's core.autocrlf=true; the script copes with CRLF too.
+        run: packaging/set-version.sh "$VERSION"
 
       - name: Build
         run: cargo build --release --locked
 
       - name: Check version
         # A GUI-subsystem exe has no console, but still writes to a redirected stdout.
-        run: test "$(target/release/aggrega.exe --version | tr -d '\r')" = "aggrega ${{ steps.version.outputs.version }}"
+        run: test "$(target/release/aggrega.exe --version | tr -d '\r')" = "aggrega $VERSION"
 
       - name: Package
-        id: package
         run: |
-          name="aggrega-${{ steps.version.outputs.version }}-windows-x86_64"
+          name="aggrega-$VERSION-windows-x86_64"
           mkdir -p "dist/$name"
           cp target/release/aggrega.exe README.md LICENSE assets/fonts/OFL.txt "dist/$name/"
           (cd dist && 7z a -tzip "$name.zip" "$name")
-          echo "name=$name" >> "$GITHUB_OUTPUT"
 
       - uses: actions/upload-artifact@v7
         with:
           archive: false
-          path: dist/${{ steps.package.outputs.name }}.zip
-          if-no-files-found: error
-
-  build-appimage:
-    # Portable x86_64 AppImage. Built on the oldest supported Ubuntu so it runs
-    # on any distribution with glibc 2.35 or newer (the Arch tarball needs
-    # Arch's current glibc).
-    runs-on: ubuntu-22.04
-    steps:
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            pkg-config libfontconfig1-dev libfreetype6-dev libxkbcommon-dev \
-            libwayland-dev libgl-dev libx11-dev libxcursor-dev libxi-dev libxrandr-dev \
-            desktop-file-utils
-
-      - name: Install Rust toolchain
-        run: rustup toolchain install stable --profile minimal && rustup default stable
-
-      - uses: actions/checkout@v7
-
-      - name: Set version from tag
-        id: version
-        run: |
-          version="${GITHUB_REF_NAME#v}"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          packaging/set-version.sh "$version"
-
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Build
-        run: cargo build --release --locked
-
-      - name: Bundle
-        run: packaging/appimage/build.sh
-
-      - name: Check version
-        env:
-          APPIMAGE_EXTRACT_AND_RUN: 1
-        run: test "$(dist/aggrega-${{ steps.version.outputs.version }}-x86_64.AppImage --version)" = "aggrega ${{ steps.version.outputs.version }}"
-
-      - uses: actions/upload-artifact@v7
-        with:
-          archive: false
-          path: dist/aggrega-${{ steps.version.outputs.version }}-x86_64.AppImage
-          if-no-files-found: error
-
-  flatpak-sources:
-    # The crates the Flatpak build vendors offline, generated from Cargo.lock
-    # (needs Python and network, which the Flatpak container doesn't provide).
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Generate cargo-sources.json
-        run: packaging/flatpak/cargo-sources.sh
-
-      - uses: actions/upload-artifact@v7
-        with:
-          name: flatpak-cargo-sources
-          path: packaging/flatpak/cargo-sources.json
-          if-no-files-found: error
-
-  build-flatpak:
-    needs: flatpak-sources
-    runs-on: ubuntu-24.04
-    container:
-      # Flathub's image with flatpak-builder and the 25.08 runtime + SDK.
-      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
-      options: --privileged
-    steps:
-      - uses: actions/checkout@v7
-
-      - name: Set version from tag
-        id: version
-        run: |
-          version="${GITHUB_REF_NAME#v}"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          packaging/set-version.sh "$version"
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: flatpak-cargo-sources
-          path: packaging/flatpak
-
-      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
-        with:
-          manifest-path: packaging/flatpak/io.github.moebiusmania.Aggrega.yml
-          bundle: aggrega-${{ steps.version.outputs.version }}-x86_64.flatpak
-          build-dir: flatpak_app
-          upload-artifact: false
-
-      - name: Check version
-        # Runs the built app inside its sandbox, against the 25.08 runtime.
-        run: |
-          out="$(flatpak-builder --run flatpak_app packaging/flatpak/io.github.moebiusmania.Aggrega.yml aggrega --version)"
-          test "$out" = "aggrega ${{ steps.version.outputs.version }}"
-
-      - uses: actions/upload-artifact@v7
-        with:
-          archive: false
-          path: aggrega-${{ steps.version.outputs.version }}-x86_64.flatpak
+          path: dist/aggrega-${{ env.VERSION }}-windows-x86_64.zip
           if-no-files-found: error
 
   publish:
-    # Runs only when every platform built, so a release never has half its
-    # files. Tags with a suffix (v1.0.0-rc1) become pre-releases. GitHub adds
-    # the source archives itself.
-    needs: [build-arch, build-appimage, build-flatpak, build-macos, build-windows]
+    # Runs only for tags, and only when every platform built, so a release
+    # never has half its files. Tags with a suffix (v1.0.0-rc1) become
+    # pre-releases. GitHub adds the source archives itself.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [version, build-arch, build-appimage, build-flatpak, build-macos, build-windows]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      TAG: ${{ github.ref_name }}
     steps:
       - uses: actions/download-artifact@v8
         with:
@@ -274,14 +300,25 @@ jobs:
           pattern: aggrega-*
           path: dist
           merge-multiple: true
+          # Every release file was uploaded unzipped; without this the Windows
+          # .zip (content type application/zip) would be extracted.
+          skip-decompress: true
+
+      - name: Check the files
+        run: |
+          ls -l dist
+          for f in "aggrega-$VERSION-x86_64.tar.gz" "aggrega-$VERSION-x86_64.AppImage" \
+                   "aggrega-$VERSION-x86_64.flatpak" "aggrega-$VERSION-macos-arm64.dmg" \
+                   "aggrega-$VERSION-windows-x86_64.zip"; do
+            test -f "dist/$f" || { echo "missing $f" >&2; exit 1; }
+          done
+          test "$(find dist -mindepth 1 | wc -l)" -eq 5
 
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ls -l dist
-          test "$(ls dist | wc -l)" -eq 5
           flags="--generate-notes --verify-tag"
-          case "$GITHUB_REF_NAME" in *-*) flags="$flags --prerelease" ;; esac
-          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" \
-            --title "Aggrega ${GITHUB_REF_NAME#v}" $flags
+          case "$TAG" in *-*) flags="$flags --prerelease" ;; esac
+          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" \
+            --title "Aggrega $VERSION" $flags

@@ -22,13 +22,17 @@ Once all of them succeeded, `publish` creates the GitHub Release for the tag wit
 
 ## 2. Check `main`
 
-- Be on `main`, up to date with `origin/main`, with a clean working tree.
+- Be on `main`, up to date with `origin/main`, with a clean working tree. The tag goes on this commit.
 - Run the `precheck` skill. Don't tag if it fails.
 - Check that the latest CI run on `main` passed: `gh run list --workflow CI --branch main --limit 1`.
 
 ## 3. Don't bump the version in the repo
 
 The Git tag is the only source of truth for release versions. `Cargo.toml` and `Cargo.lock` keep the placeholder `0.0.0-dev`, and the PKGBUILD derives `pkgver` from `git describe`. Leave them alone: the workflow stamps the real version inside CI. No release commit is needed.
+
+Tag a commit on `main` (`git describe` on `main` must reach the new tag), never a PR or backup branch: the PKGBUILD's version only sees tags in `main`'s history.
+
+To check the pipeline before tagging (for example after changing `release.yml` or `packaging/`), run it by hand with `gh workflow run "Release build" --ref main`. It builds everything as `0.0.0-ci` and publishes nothing.
 
 ## 4. Tag and push (confirm first)
 
