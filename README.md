@@ -50,6 +50,19 @@
 | `J` / `N` / `→`, `K` / `P` | Next / previous story in the list (reader) |
 | any key / click | Skip the opening animation |
 
+## Download
+
+Every version is on the [Releases page](https://github.com/moebiusmania/aggrega/releases):
+
+| Platform | File |
+|---|---|
+| Any Linux (glibc 2.35+, e.g. Ubuntu 22.04 or newer) | `aggrega-<version>-x86_64.AppImage` (portable, `chmod +x` and run) or `aggrega-<version>-x86_64.flatpak` (`flatpak install --user <file>`) |
+| Arch Linux | `aggrega-<version>-x86_64.tar.gz` (binary, `.desktop` file and icon), or build the package below |
+| macOS (Apple silicon) | `aggrega-<version>-macos-arm64.dmg` |
+| Windows 10/11 (x86_64) | `aggrega-<version>-windows-x86_64.zip` |
+
+See [docs/BUILDING.md](docs/BUILDING.md#5-install-on-linux) for the Linux packages' details.
+
 ## Quick start (Arch Linux)
 
 ```bash
@@ -78,11 +91,11 @@ If you only open TCP 47812, you can still sync by typing the other computer's ad
 
 ## macOS
 
-Each release run builds `Aggrega.app` for Apple silicon Macs (M series, macOS 11+), published as the disk image `aggrega-<version>-macos-arm64.dmg` in the run's artifacts. Intel Macs aren't supported. The app isn't notarized, so the first launch is blocked by Gatekeeper: click **Open Anyway** under *System Settings → Privacy & Security*, or run `xattr -dr com.apple.quarantine /Applications/Aggrega.app`. See [docs/BUILDING.md](docs/BUILDING.md#6-macos) to build it yourself.
+Each release run builds `Aggrega.app` for Apple silicon Macs (M series, macOS 11+), published as the disk image `aggrega-<version>-macos-arm64.dmg` on the Releases page. Intel Macs aren't supported. The app isn't notarized, so the first launch is blocked by Gatekeeper: click **Open Anyway** under *System Settings → Privacy & Security*, or run `xattr -dr com.apple.quarantine /Applications/Aggrega.app`. See [docs/BUILDING.md](docs/BUILDING.md#6-macos) to build it yourself.
 
 ## Windows
 
-Each release run also builds `aggrega-<version>-windows-x86_64.zip` for 64-bit Windows 10 and 11. Unzip it anywhere and run `aggrega.exe`; there's no installer. The executable isn't signed, so SmartScreen may warn on first launch: click **More info → Run anyway**. See [docs/BUILDING.md](docs/BUILDING.md#7-windows) to build it yourself.
+Each release also ships `aggrega-<version>-windows-x86_64.zip` for 64-bit Windows 10 and 11. Unzip it anywhere and run `aggrega.exe`; there's no installer. The executable isn't signed, so SmartScreen may warn on first launch: click **More info → Run anyway**. See [docs/BUILDING.md](docs/BUILDING.md#7-windows) to build it yourself.
 
 ## Where is my data?
 
@@ -135,13 +148,13 @@ aggrega/
 │   ├── aggrega.ico     # Windows icon, embedded in aggrega.exe by build.rs
 │   └── fonts/          # bundled OFL fonts (see FONTS.md)
 ├── translations/       # .po catalogs (it); English is the source text
-├── packaging/          # .desktop file, Arch PKGBUILD, macOS .app bundling
+├── packaging/          # .desktop file, Arch PKGBUILD, AppImage, Flatpak, macOS .app bundling, set-version.sh
 └── docs/
 ```
 
 ## Roadmap ideas
 
-- More build targets: [Windows (#3)](https://github.com/moebiusmania/aggrega/issues/3), macOS polish ([#4](https://github.com/moebiusmania/aggrega/issues/4): title bar, `Cmd` shortcuts, signing), [AppImage (#5)](https://github.com/moebiusmania/aggrega/issues/5), [Flatpak (#6)](https://github.com/moebiusmania/aggrega/issues/6)
+- More build targets: macOS polish ([#4](https://github.com/moebiusmania/aggrega/issues/4): title bar, `Cmd` shortcuts, signing), publishing the Flatpak on Flathub
 - [Folders/categories (#8)](https://github.com/moebiusmania/aggrega/issues/8), [search (#9)](https://github.com/moebiusmania/aggrega/issues/9)
 - [Next/previous story from the reader (#11)](https://github.com/moebiusmania/aggrega/issues/11)
 

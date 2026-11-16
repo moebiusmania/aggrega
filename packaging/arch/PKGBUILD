@@ -1,7 +1,7 @@
 # Builds Aggrega from this local checkout (no download step).
 # Usage (from this directory):  makepkg -si
 pkgname=aggrega
-pkgver=0.2.0
+pkgver=0.0.0
 pkgrel=1
 pkgdesc="Fast, lightweight, local-first RSS/Atom feed reader (Rust + Slint)"
 arch=('x86_64' 'aarch64')
@@ -22,6 +22,14 @@ options=('!lto' '!debug')
 
 # The project root is two levels above this PKGBUILD.
 _root="$(realpath "${startdir:-.}/../..")"
+
+# Release versions live only in Git tags (Cargo.toml keeps 0.0.0-dev), so the
+# package version comes from the nearest tag: v0.9.0, or 0.9.0.r3.gabc1234
+# three commits after it.
+pkgver() {
+  git -C "$_root" describe --tags --long --match 'v[0-9]*' 2>/dev/null \
+    | sed 's/^v//;s/-\([0-9]*\)-g/.r\1.g/;s/-/./g' || echo 0.0.0
+}
 
 prepare() {
   cd "$_root"

@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- AppStream metadata for the Flatpak. The manifest replaces @VERSION@ and
+     @DATE@ with the version from Cargo.toml (set from the tag in CI) and the
+     build date. -->
+<component type="desktop-application">
+  <id>io.github.moebiusmania.Aggrega</id>
+  <name>Aggrega</name>
+  <summary>All your feeds, one edition</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT AND OFL-1.1</project_license>
+  <developer id="io.github.moebiusmania">
+    <name>Salvatore Laisa</name>
+  </developer>
+  <description>
+    <p>
+      Aggrega is a fast, lightweight desktop feed reader with an editorial,
+      magazine-style design. It runs entirely on your machine, with no account,
+      no cloud and no telemetry.
+    </p>
+    <ul>
+      <li>RSS, Atom and JSON Feed, from a feed URL or just a website address</li>
+      <li>OPML import and export</li>
+      <li>A clean reader view that pulls the story out of the page and keeps it for offline reading</li>
+      <li>Typo-tolerant search as you type</li>
+      <li>Sync between computers on your local network, only while you ask for it</li>
+      <li>Light and dark themes that follow your desktop</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">io.github.moebiusmania.Aggrega.desktop</launchable>
+  <url type="homepage">https://github.com/moebiusmania/aggrega</url>
+  <url type="bugtracker">https://github.com/moebiusmania/aggrega/issues</url>
+  <url type="vcs-browser">https://github.com/moebiusmania/aggrega</url>
+  <screenshots>
+    <screenshot type="default">
+      <caption>The article list, light theme</caption>
+      <image>https://raw.githubusercontent.com/moebiusmania/aggrega/main/docs/screenshots/light.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>The article list, dark theme</caption>
+      <image>https://raw.githubusercontent.com/moebiusmania/aggrega/main/docs/screenshots/dark.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>Adding a source</caption>
+      <image>https://raw.githubusercontent.com/moebiusmania/aggrega/main/docs/screenshots/add-source.png</image>
+    </screenshot>
+  </screenshots>
+  <categories>
+    <category>Network</category>
+    <category>News</category>
+  </categories>
+  <keywords>
+    <keyword>rss</keyword>
+    <keyword>atom</keyword>
+    <keyword>feed</keyword>
+    <keyword>news</keyword>
+    <keyword>reader</keyword>
+  </keywords>
+  <content_rating type="oars-1.1"/>
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+  <releases>
+    <release version="@VERSION@" date="@DATE@">
+      <url type="details">https://github.com/moebiusmania/aggrega/releases</url>
+    </release>
+  </releases>
+</component>
