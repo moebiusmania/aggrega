@@ -3,8 +3,8 @@
 #
 #   packaging/macos/bundle.sh
 #
-# The version comes from Cargo.toml (which the release workflow rewrites from the
-# tag), so Info.plist always matches the version compiled into the binary.
+# The version comes from Cargo.toml (0.0.0-dev; the release workflow stamps the
+# tag's version in), so Info.plist always matches the version compiled in.
 # Needs the Rust target (rustup target add aarch64-apple-darwin) and rsvg-convert
 # (brew install librsvg) to render the icon.
 # Output: dist/Aggrega.app and dist/aggrega-<version>-macos-arm64.dmg
@@ -15,7 +15,7 @@ version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)"
 target="aarch64-apple-darwin"
 app="dist/Aggrega.app"
 
-cargo build --release --target "$target"
+cargo build --release --locked --target "$target"
 
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"

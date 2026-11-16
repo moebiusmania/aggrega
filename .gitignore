@@ -14,3 +14,10 @@
 # Local-only files
 CLAUDE.local.md
 
+
+# Flatpak build (packaging/flatpak/build.sh): state, build dir, repo and the
+# generated crate list
+/.flatpak-builder
+/packaging/flatpak/build
+/packaging/flatpak/repo
+/packaging/flatpak/cargo-sources.json

@@ -1,6 +1,6 @@
 # Building and running Aggrega
 
-Arch Linux is the first supported target, and macOS and Windows builds are produced for every release (see [section 6](#6-macos) and [section 7](#7-windows)). Other platforms will follow in later iterations. The code is portable, so what's missing for them is mostly packaging.
+Arch Linux is the first supported target. Every release also ships a portable AppImage and a Flatpak for other Linux distributions (see [section 5](#5-install-on-linux)), a macOS app ([section 6](#6-macos)) and a Windows zip ([section 7](#7-windows)), all attached to the [GitHub Release](https://github.com/moebiusmania/aggrega/releases) for that version.
 
 ## 1. Prerequisites (Arch Linux)
 
@@ -66,7 +66,22 @@ make install    # installs binary, .desktop and icon into ~/.local (PREFIX=... t
 make uninstall
 make package    # builds an Arch package with makepkg
 make macos-app  # builds Aggrega.app and a .dmg (macOS only, see section 6)
+make appimage   # builds the AppImage (Linux, see section 5)
+make flatpak    # builds the Flatpak bundle (Linux, see section 5)
 ```
+
+### Release builds in CI
+
+Pushing a version tag triggers the `Release build` GitHub Actions workflow (`.github/workflows/release.yml`):
+
+```bash
+git tag v0.3.0
+git push origin v0.3.0
+```
+
+The tag is the only source of truth for the version. The repository keeps the placeholder `0.0.0-dev` in `Cargo.toml`, which is what local builds show, and every job first runs `packaging/set-version.sh` to stamp the tag's version into `Cargo.toml` and `Cargo.lock`: `v0.3.0` becomes `0.3.0`, and the sidebar (under the logo), the About tab in Settings, `aggrega --version`, the macOS `Info.plist` and the Flatpak metainfo show it. Every job fails if `aggrega --version` doesn't print the tag's version.
+
+The workflow builds the Arch tarball, the AppImage, the Flatpak, the macOS disk image and the Windows zip in parallel. Once all five succeeded, a last `publish` job creates the GitHub Release for the tag, with generated release notes and the five files attached. If any platform fails, no release is created; fix it and push a new tag. Tags with a suffix (`v1.0.0-rc1`) become pre-releases.
 
 ## 4. Tests and linting
 
@@ -80,7 +95,7 @@ The tests don't touch the network or your real data. The storage tests use a tem
 
 The UI tests in `src/app.rs` create the real window with Slint's headless testing backend (`i-slint-backend-testing`, a dev-dependency pinned to the exact `slint` version), so they need no display. They check the responsive layout at several window sizes and drive the reader view: opening an article, swapping a summary for the full page, pictures, read state, and closing it with `Esc` or the back button. They also open the settings modal and switch its tabs, and check OPML export and import (the parser's tests read real exports from Feedly, Inoreader, NetNewsWire and Miniflux in `tests/fixtures/opml/`). When you upgrade `slint`, bump `i-slint-backend-testing` to the same version.
 
-## 5. Install on Arch Linux
+## 5. Install on Linux
 
 ### Option A: as a pacman package (recommended)
 
@@ -95,7 +110,7 @@ This builds from the current checkout. It runs `cargo fetch --locked`, a release
 - `/usr/share/applications/aggrega.desktop`, so Aggrega appears in your app launcher
 - `/usr/share/icons/hicolor/scalable/apps/aggrega.svg`
 
-To upgrade after pulling changes, bump `pkgrel` (or `pkgver`) in the PKGBUILD and run `makepkg -si` again. To remove it, run `sudo pacman -R aggrega`.
+The package version comes from the nearest tag (`git describe`): `0.9.0` on a tag, `0.9.0.r3.gabc1234` three commits after it, so pulling new commits and running `makepkg -si` again upgrades it. The binary itself reports the placeholder `0.0.0-dev`, as every local build does. To remove it, run `sudo pacman -R aggrega`.
 
 ### Option B: user-local install without pacman
 
@@ -106,20 +121,51 @@ make uninstall
 
 Make sure `~/.local/bin` is on your `PATH`.
 
-### Option C: prebuilt binary from CI
+### Option C: prebuilt binary from a release
 
-Pushing a version tag triggers the `Release build` GitHub Actions workflow (`.github/workflows/release.yml`):
+Each [GitHub Release](https://github.com/moebiusmania/aggrega/releases) has `aggrega-<version>-x86_64.tar.gz`, built inside an `archlinux` container. It contains the binary, the `.desktop` file, the icon, the README and the licenses (`LICENSE`, plus `OFL.txt` for the bundled fonts). It links against Arch's current glibc, so it won't start on older distributions (Ubuntu 22.04, Debian stable): use the AppImage or the Flatpak there.
+
+### Option D: AppImage (any distribution)
+
+`aggrega-<version>-x86_64.AppImage` runs on most x86_64 distributions with glibc 2.35 or newer (Ubuntu 22.04, Debian 12, Fedora 36 and later), on Wayland and X11. Make it executable and run it:
 
 ```bash
-git tag v0.3.0
-git push origin v0.3.0
+chmod +x aggrega-*-x86_64.AppImage
+./aggrega-*-x86_64.AppImage
 ```
 
-The workflow builds inside an `archlinux` container and uses the tag as the app version: `v0.3.0` becomes `0.3.0`, and the sidebar (under the logo) and the About tab in Settings show it. Every job fails if `aggrega --version` doesn't print the tag's version. When the run finishes, download `aggrega-<version>-x86_64.tar.gz` from the run's **Artifacts** section. It contains the binary, the `.desktop` file, the icon, the README and the licenses (`LICENSE`, plus `OFL.txt` for the bundled fonts). The same run also builds the macOS app and the Windows zip (see below). Local builds show the version from `Cargo.toml`.
+If it complains about FUSE, install `libfuse2` (`fuse2` on Arch) or run it with `--appimage-extract-and-run`. Your data stays in the usual XDG paths ([section 8](#8-data-and-reset)), so it shares the database with the other Linux builds.
+
+To build it yourself, on an old enough distribution (the release workflow uses Ubuntu 22.04, and the AppImage only runs on systems with that glibc or newer):
+
+```bash
+make appimage        # cargo build --release, then packaging/appimage/build.sh
+```
+
+`packaging/appimage/build.sh` downloads pinned builds of `linuxdeploy` and its AppImage plugin into `dist/appimage-tools`, builds the AppDir from `target/release/aggrega`, `packaging/aggrega.desktop` and `assets/aggrega.svg`, and writes `dist/aggrega-<version>-x86_64.AppImage`. linuxdeploy bundles the libraries the binary links against, except the ones every desktop provides and that must match the host's drivers (glibc, OpenGL, fontconfig, freetype, X11). Wayland, libxkbcommon and OpenGL are loaded from the host at run time.
+
+### Option E: Flatpak (any distribution)
+
+`aggrega-<version>-x86_64.flatpak` is a single-file bundle with the app ID `io.github.moebiusmania.Aggrega`, on the `org.freedesktop.Platform` 25.08 runtime, which Flatpak fetches from Flathub:
+
+```bash
+flatpak install --user aggrega-*-x86_64.flatpak
+flatpak run io.github.moebiusmania.Aggrega
+```
+
+The sandbox only gets network access (feeds and LAN sync), Wayland with an X11 fallback, and the GPU. It has no access to your files: OPML import and export go through the file chooser portal, links open in your browser through the OpenURI portal, and the light/dark preference comes from the settings portal. Data lives inside the sandbox, under `~/.var/app/io.github.moebiusmania.Aggrega/` (`data/aggrega/aggrega.db` and `cache/aggrega/thumbs/`), so it doesn't share a database with the other Linux builds; sync or export/import to move between them.
+
+To build it yourself you need `flatpak`, `flatpak-builder`, the Flathub remote (`flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo`) and `python3`:
+
+```bash
+make flatpak         # = packaging/flatpak/build.sh
+```
+
+The manifest (`packaging/flatpak/io.github.moebiusmania.Aggrega.yml`) builds offline. `packaging/flatpak/cargo-sources.sh` first generates `cargo-sources.json`, the list of crates to vendor, from `Cargo.lock` with a pinned `flatpak-cargo-generator`. The file is generated on every build and not committed, so it can't drift from `Cargo.lock`. The script then runs `flatpak-builder` and exports `dist/aggrega-<version>-x86_64.flatpak`. The AppStream metadata is in `packaging/flatpak/io.github.moebiusmania.Aggrega.metainfo.xml`. Flathub isn't set up yet; submitting there needs the manifest and a committed `cargo-sources.json` in a `flathub/io.github.moebiusmania.Aggrega` repository.
 
 ## 6. macOS
 
-Every version tag also produces `aggrega-<version>-macos-arm64.dmg`, in the same run's **Artifacts** section. It holds `Aggrega.app`, built for Apple silicon (M series) Macs running macOS 11 or newer; Intel Macs aren't supported. Open the disk image and drag `Aggrega.app` onto the `Applications` link.
+Every release also has `aggrega-<version>-macos-arm64.dmg`. It holds `Aggrega.app`, built for Apple silicon (M series) Macs running macOS 11 or newer; Intel Macs aren't supported. Open the disk image and drag `Aggrega.app` onto the `Applications` link.
 
 ### First launch (Gatekeeper)
 
@@ -144,7 +190,7 @@ open dist/Aggrega.app
 
 ## 7. Windows
 
-Every version tag also produces `aggrega-<version>-windows-x86_64.zip`, in the same run's **Artifacts** section, for 64-bit Windows 10 and 11. It holds `aggrega.exe`, the README and the licenses. There's no installer: unzip it wherever you like (for example `%LOCALAPPDATA%\Programs\Aggrega`) and run `aggrega.exe`, or pin it to Start or the taskbar. Your data lives elsewhere (see [section 8](#8-data-and-reset)), so replacing the folder with a newer version keeps it.
+Every release also has `aggrega-<version>-windows-x86_64.zip`, for 64-bit Windows 10 and 11. It holds `aggrega.exe`, the README and the licenses. There's no installer: unzip it wherever you like (for example `%LOCALAPPDATA%\Programs\Aggrega`) and run `aggrega.exe`, or pin it to Start or the taskbar. Your data lives elsewhere (see [section 8](#8-data-and-reset)), so replacing the folder with a newer version keeps it.
 
 ### First launch (SmartScreen)
 
@@ -159,7 +205,7 @@ cargo run                # dev build, with a console window for log output
 cargo build --release    # target\release\aggrega.exe, no console window
 ```
 
-No other native libraries are needed: SQLite is compiled in, and the window uses OpenGL through the GPU driver. `build.rs` embeds `assets/aggrega.ico` (and the version from `Cargo.toml`) into the executable via `winresource`, so Explorer and the taskbar show the app icon. Release builds use the GUI subsystem (`#![windows_subsystem = "windows"]` in `src/main.rs`), so no console window opens next to the app; debug builds keep it. The release workflow's `build-windows` job runs the same `cargo build --release` on `windows-latest` and zips the result.
+No other native libraries are needed: SQLite is compiled in, and the window uses OpenGL through the GPU driver. `build.rs` embeds `assets/aggrega.ico` (and the version from `Cargo.toml`, `0.0.0-dev` outside a release build) into the executable via `winresource`, so Explorer and the taskbar show the app icon. Release builds use the GUI subsystem (`#![windows_subsystem = "windows"]` in `src/main.rs`), so no console window opens next to the app; debug builds keep it. The release workflow's `build-windows` job runs the same `cargo build --release` on `windows-latest` and zips the result.
 
 ## 8. Data and reset
 
@@ -168,7 +214,7 @@ No other native libraries are needed: SQLite is compiled in, and the window uses
 | Database | `${XDG_DATA_HOME:-~/.local/share}/aggrega/aggrega.db` | `~/Library/Application Support/aggrega/aggrega.db` | `%APPDATA%\aggrega\data\aggrega.db` |
 | Thumbnails | `${XDG_CACHE_HOME:-~/.cache}/aggrega/thumbs/` | `~/Library/Caches/aggrega/thumbs/` | `%LOCALAPPDATA%\aggrega\cache\thumbs\` |
 
-On Linux, both paths honour `XDG_DATA_HOME` / `XDG_CACHE_HOME`.
+On Linux, both paths honour `XDG_DATA_HOME` / `XDG_CACHE_HOME`. The Flatpak keeps its own copy inside the sandbox, under `~/.var/app/io.github.moebiusmania.Aggrega/data/aggrega/` and `.../cache/aggrega/thumbs/`.
 
 To try Aggrega with a throwaway profile without touching your real data, point `AGGREGA_HOME` at a scratch directory. It works on every platform and takes precedence over the paths above. The database and thumbnails then live together as `$AGGREGA_HOME/aggrega.db` and `$AGGREGA_HOME/thumbs/`, and deleting the directory resets the profile:
 

@@ -1,6 +1,6 @@
 [package]
 name = "aggrega"
-version = "0.2.0"
+version = "0.0.0-dev"
 edition = "2024"
 rust-version = "1.88"
 description = "A fast, lightweight, local-first RSS/Atom feed reader"

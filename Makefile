@@ -2,7 +2,7 @@
 PREFIX ?= $(HOME)/.local
 BIN     = target/release/aggrega
 
-.PHONY: run dev release test lint install uninstall package macos-app site clean
+.PHONY: run dev release test lint install uninstall package macos-app appimage flatpak site clean
 
 run: release
 	./$(BIN)
@@ -35,6 +35,12 @@ package:
 
 macos-app:
 	packaging/macos/bundle.sh
+
+appimage: release
+	packaging/appimage/build.sh
+
+flatpak:
+	packaging/flatpak/build.sh
 
 # Landing page (public/), served locally; published as GitHub Pages.
 site:

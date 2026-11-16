@@ -1,7 +1,11 @@
-# Builds an Arch Linux binary, a macOS app and a Windows zip whenever a version tag (v0.0.1, v1.2.3, ...) is pushed.
-# The tag becomes the app version: Cargo.toml is rewritten before the build, so
-# `CARGO_PKG_VERSION` (shown in the sidebar and the About tab) matches the tag;
-# every job checks `aggrega --version` against it.
+# Whenever a version tag (v0.0.1, v1.2.3, v1.0.0-rc1, ...) is pushed, builds
+# every platform (Arch tarball, AppImage, Flatpak, macOS dmg, Windows zip) and,
+# once all of them succeeded, publishes a GitHub Release with the files attached.
+# The tag is the only source of truth for the version: the repository keeps the
+# placeholder 0.0.0-dev, and every job stamps the tag's version into Cargo.toml
+# and Cargo.lock (packaging/set-version.sh) before building, so
+# `CARGO_PKG_VERSION` (sidebar, About tab, `--version`) matches the tag; every
+# job checks `aggrega --version` against it.
 name: Release build
 
 on:
@@ -35,16 +39,12 @@ jobs:
         run: |
           version="${GITHUB_REF_NAME#v}"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          # Only the [package] version line (the first `version =` in the file).
-          sed -i "0,/^version = \".*\"/s//version = \"$version\"/" Cargo.toml
-          grep -m1 '^version' Cargo.toml
+          packaging/set-version.sh "$version"
 
       - uses: Swatinem/rust-cache@v2
 
       - name: Build
-        # Not --locked: the version bump rewrites aggrega's own entry in Cargo.lock.
-        # Dependencies stay pinned by the committed lock file.
-        run: cargo build --release
+        run: cargo build --release --locked
 
       - name: Check version
         # The binary (sidebar, About tab) must report the tag's version.
@@ -88,14 +88,11 @@ jobs:
         run: |
           version="${GITHUB_REF_NAME#v}"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          # BSD sed: only the [package] version line (the first `version =`).
-          sed -i '' "1,/^version = /s/^version = \".*\"/version = \"$version\"/" Cargo.toml
-          grep -m1 '^version' Cargo.toml
+          packaging/set-version.sh "$version"
 
       - uses: Swatinem/rust-cache@v2
 
       - name: Build and bundle
-        # Not --locked, for the same reason as the Linux build.
         run: packaging/macos/bundle.sh
 
       - name: Check version and name
@@ -134,15 +131,12 @@ jobs:
         run: |
           version="${GITHUB_REF_NAME#v}"
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          # GNU sed: only the [package] version line (the first `version =`).
-          sed -i "0,/^version = \".*\"/s//version = \"$version\"/" Cargo.toml
-          grep -m1 '^version' Cargo.toml
+          packaging/set-version.sh "$version"
 
       - uses: Swatinem/rust-cache@v2
 
       - name: Build
-        # Not --locked, for the same reason as the Linux build.
-        run: cargo build --release
+        run: cargo build --release --locked
 
       - name: Check version
         # A GUI-subsystem exe has no console, but still writes to a redirected stdout.
@@ -162,3 +156,132 @@ jobs:
           archive: false
           path: dist/${{ steps.package.outputs.name }}.zip
           if-no-files-found: error
+
+  build-appimage:
+    # Portable x86_64 AppImage. Built on the oldest supported Ubuntu so it runs
+    # on any distribution with glibc 2.35 or newer (the Arch tarball needs
+    # Arch's current glibc).
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libfontconfig1-dev libfreetype6-dev libxkbcommon-dev \
+            libwayland-dev libgl-dev libx11-dev libxcursor-dev libxi-dev libxrandr-dev \
+            desktop-file-utils
+
+      - name: Install Rust toolchain
+        run: rustup toolchain install stable --profile minimal && rustup default stable
+
+      - uses: actions/checkout@v7
+
+      - name: Set version from tag
+        id: version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          packaging/set-version.sh "$version"
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build
+        run: cargo build --release --locked
+
+      - name: Bundle
+        run: packaging/appimage/build.sh
+
+      - name: Check version
+        env:
+          APPIMAGE_EXTRACT_AND_RUN: 1
+        run: test "$(dist/aggrega-${{ steps.version.outputs.version }}-x86_64.AppImage --version)" = "aggrega ${{ steps.version.outputs.version }}"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          archive: false
+          path: dist/aggrega-${{ steps.version.outputs.version }}-x86_64.AppImage
+          if-no-files-found: error
+
+  flatpak-sources:
+    # The crates the Flatpak build vendors offline, generated from Cargo.lock
+    # (needs Python and network, which the Flatpak container doesn't provide).
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Generate cargo-sources.json
+        run: packaging/flatpak/cargo-sources.sh
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: flatpak-cargo-sources
+          path: packaging/flatpak/cargo-sources.json
+          if-no-files-found: error
+
+  build-flatpak:
+    needs: flatpak-sources
+    runs-on: ubuntu-24.04
+    container:
+      # Flathub's image with flatpak-builder and the 25.08 runtime + SDK.
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-25.08
+      options: --privileged
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set version from tag
+        id: version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          packaging/set-version.sh "$version"
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: flatpak-cargo-sources
+          path: packaging/flatpak
+
+      - uses: flatpak/flatpak-github-actions/flatpak-builder@v6
+        with:
+          manifest-path: packaging/flatpak/io.github.moebiusmania.Aggrega.yml
+          bundle: aggrega-${{ steps.version.outputs.version }}-x86_64.flatpak
+          build-dir: flatpak_app
+          upload-artifact: false
+
+      - name: Check version
+        # Runs the built app inside its sandbox, against the 25.08 runtime.
+        run: |
+          out="$(flatpak-builder --run flatpak_app packaging/flatpak/io.github.moebiusmania.Aggrega.yml aggrega --version)"
+          test "$out" = "aggrega ${{ steps.version.outputs.version }}"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          archive: false
+          path: aggrega-${{ steps.version.outputs.version }}-x86_64.flatpak
+          if-no-files-found: error
+
+  publish:
+    # Runs only when every platform built, so a release never has half its
+    # files. Tags with a suffix (v1.0.0-rc1) become pre-releases. GitHub adds
+    # the source archives itself.
+    needs: [build-arch, build-appimage, build-flatpak, build-macos, build-windows]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          # Only the release files, not flatpak-cargo-sources.
+          pattern: aggrega-*
+          path: dist
+          merge-multiple: true
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -l dist
+          test "$(ls dist | wc -l)" -eq 5
+          flags="--generate-notes --verify-tag"
+          case "$GITHUB_REF_NAME" in *-*) flags="$flags --prerelease" ;; esac
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" \
+            --title "Aggrega ${GITHUB_REF_NAME#v}" $flags
