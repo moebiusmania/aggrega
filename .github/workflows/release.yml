@@ -187,7 +187,7 @@ jobs:
       - name: Check version
         # Runs the built app inside its sandbox, against the 25.08 runtime.
         run: |
-          out="$(flatpak-builder --disable-rofiles-fuse --run flatpak_app \
+          out="$(flatpak-builder --run flatpak_app \
             packaging/flatpak/io.github.moebiusmania.Aggrega.yml aggrega --version)"
           test "$out" = "aggrega $VERSION"
 
