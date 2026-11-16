@@ -56,7 +56,7 @@ Every version is on the [Releases page](https://github.com/moebiusmania/aggrega/
 
 | Platform | File |
 |---|---|
-| Any Linux (glibc 2.35+, e.g. Ubuntu 22.04 or newer) | `aggrega-<version>-x86_64.AppImage` (portable, `chmod +x` and run) or `aggrega-<version>-x86_64.flatpak` (`flatpak install --user <file>`) |
+| Any Linux | `aggrega-<version>-x86_64.AppImage` (portable, `chmod +x` and run; glibc 2.35+, e.g. Ubuntu 22.04 or newer) or `aggrega-<version>-x86_64.flatpak` (`flatpak install --user <file>`) |
 | Arch Linux | `aggrega-<version>-x86_64.tar.gz` (binary, `.desktop` file and icon), or build the package below |
 | macOS (Apple silicon) | `aggrega-<version>-macos-arm64.dmg` |
 | Windows 10/11 (x86_64) | `aggrega-<version>-windows-x86_64.zip` |

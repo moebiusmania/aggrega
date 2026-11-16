@@ -20,7 +20,9 @@ cargo build --release --locked --target "$target"
 rm -rf "$app"
 mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
 cp "target/$target/release/aggrega" "$app/Contents/MacOS/aggrega"
-sed "s/@VERSION@/$version/g" packaging/macos/Info.plist > "$app/Contents/Info.plist"
+# Bundle versions are numeric only, so a pre-release (1.0.0-rc1) or the
+# placeholder (0.0.0-dev) drops its suffix there.
+sed "s/@VERSION@/${version%%-*}/g" packaging/macos/Info.plist > "$app/Contents/Info.plist"
 cp LICENSE assets/fonts/OFL.txt "$app/Contents/Resources/"
 
 # .icns from the SVG: every size iconutil expects, at 1x and 2x.

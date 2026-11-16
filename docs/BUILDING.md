@@ -79,9 +79,13 @@ git tag v0.3.0
 git push origin v0.3.0
 ```
 
-The tag is the only source of truth for the version. The repository keeps the placeholder `0.0.0-dev` in `Cargo.toml`, which is what local builds show, and every job first runs `packaging/set-version.sh` to stamp the tag's version into `Cargo.toml` and `Cargo.lock`: `v0.3.0` becomes `0.3.0`, and the sidebar (under the logo), the About tab in Settings, `aggrega --version`, the macOS `Info.plist` and the Flatpak metainfo show it. Every job fails if `aggrega --version` doesn't print the tag's version.
+The tag is the only source of truth for the version. The repository keeps the placeholder `0.0.0-dev` in `Cargo.toml`, which is what local builds show, and every job first runs `packaging/set-version.sh` to stamp the tag's version into `Cargo.toml` and `Cargo.lock`: `v0.3.0` becomes `0.3.0`, and the sidebar (under the logo), the About tab in Settings, `aggrega --version`, the macOS `Info.plist` and the Flatpak metainfo show it. Every job fails if `aggrega --version` doesn't print the tag's version. The macOS bundle versions (`CFBundleVersion`, `CFBundleShortVersionString`) must be numeric, so they drop any suffix: `1.0.0-rc1` becomes `1.0.0` there.
 
-The workflow builds the Arch tarball, the AppImage, the Flatpak, the macOS disk image and the Windows zip in parallel. Once all five succeeded, a last `publish` job creates the GitHub Release for the tag, with generated release notes and the five files attached. If any platform fails, no release is created; fix it and push a new tag. Tags with a suffix (`v1.0.0-rc1`) become pre-releases.
+Tag a commit that is on `main` (after the PR is merged, not on the PR branch): the Arch package takes its version from the nearest tag reachable from the checkout, and a tag outside `main`'s history is invisible to it.
+
+The workflow builds the Arch tarball, the AppImage, the Flatpak, the macOS disk image and the Windows zip in parallel. Once all five succeeded, a last `publish` job creates the GitHub Release for the tag, with generated release notes and the five files attached. If a platform fails, no release is created: re-run the failed job (`gh run rerun <run-id> --failed`) if the failure was transient, or fix it and push a new tag. Tags with a suffix (`v1.0.0-rc1`) become pre-releases.
+
+To test the pipeline without a tag, run it from *Actions → Release build → Run workflow*. Pull requests that touch `packaging/` or the workflow run it too. Those runs build everything with the version `0.0.0-ci` and skip `publish`; the files are in the run's artifacts.
 
 ## 4. Tests and linting
 
@@ -110,7 +114,7 @@ This builds from the current checkout. It runs `cargo fetch --locked`, a release
 - `/usr/share/applications/aggrega.desktop`, so Aggrega appears in your app launcher
 - `/usr/share/icons/hicolor/scalable/apps/aggrega.svg`
 
-The package version comes from the nearest tag (`git describe`): `0.9.0` on a tag, `0.9.0.r3.gabc1234` three commits after it, so pulling new commits and running `makepkg -si` again upgrades it. The binary itself reports the placeholder `0.0.0-dev`, as every local build does. To remove it, run `sudo pacman -R aggrega`.
+The package version comes from the nearest tag (`git describe`): `0.9.0.r0.g<hash>` on `v0.9.0`, `0.9.0.r3.g<hash>` three commits after it, so pulling new commits and running `makepkg -si` again upgrades it. A checkout without tags (a shallow clone or a source zip) builds as `0.0.0.r0.g0`; run `git fetch --tags` first. The binary itself reports the placeholder `0.0.0-dev`, as every local build does. To remove it, run `sudo pacman -R aggrega`.
 
 ### Option B: user-local install without pacman
 
@@ -134,7 +138,7 @@ chmod +x aggrega-*-x86_64.AppImage
 ./aggrega-*-x86_64.AppImage
 ```
 
-If it complains about FUSE, install `libfuse2` (`fuse2` on Arch) or run it with `--appimage-extract-and-run`. Your data stays in the usual XDG paths ([section 8](#8-data-and-reset)), so it shares the database with the other Linux builds.
+The AppImage runtime is statically linked, so `libfuse2` isn't needed, but mounting it needs FUSE itself (`fusermount3`, from the `fuse3` package, present on most desktops). Without it, or inside a container, run it with `--appimage-extract-and-run`. Your data stays in the usual XDG paths ([section 8](#8-data-and-reset)), so it shares the database with the other Linux builds.
 
 To build it yourself, on an old enough distribution (the release workflow uses Ubuntu 22.04, and the AppImage only runs on systems with that glibc or newer):
 

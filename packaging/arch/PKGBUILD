@@ -1,7 +1,6 @@
 # Builds Aggrega from this local checkout (no download step).
 # Usage (from this directory):  makepkg -si
 pkgname=aggrega
-pkgver=0.0.0
 pkgrel=1
 pkgdesc="Fast, lightweight, local-first RSS/Atom feed reader (Rust + Slint)"
 arch=('x86_64' 'aarch64')
@@ -24,12 +23,14 @@ options=('!lto' '!debug')
 _root="$(realpath "${startdir:-.}/../..")"
 
 # Release versions live only in Git tags (Cargo.toml keeps 0.0.0-dev), so the
-# package version comes from the nearest tag: v0.9.0, or 0.9.0.r3.gabc1234
-# three commits after it.
-pkgver() {
-  git -C "$_root" describe --tags --long --match 'v[0-9]*' 2>/dev/null \
-    | sed 's/^v//;s/-\([0-9]*\)-g/.r\1.g/;s/-/./g' || echo 0.0.0
-}
+# package version comes from the nearest tag reachable from HEAD: 0.9.0.r0.g<hash>
+# on v0.9.0, 0.9.0.r3.g<hash> three commits later. v1.0.0-rc1 gives
+# 1.0.0rc1.r0.g<hash>, which pacman sorts before 1.0.0.r0.g<hash>. With no tag
+# (a shallow clone or a source zip) it falls back to 0.0.0.r0.g0. Computed here rather than in pkgver(), which
+# makepkg would write back into this tracked file.
+_describe="$(git -C "$_root" describe --tags --long --match 'v[0-9]*' 2>/dev/null)" || true
+pkgver="$(printf '%s\n' "${_describe:-v0.0.0-0-g0}" \
+  | sed 's/^v//;s/-\([0-9]*\)-g\([0-9a-f]*\)$/.r\1.g\2/;s/-//g')"
 
 prepare() {
   cd "$_root"

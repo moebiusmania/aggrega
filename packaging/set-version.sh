@@ -9,14 +9,15 @@
 # working.
 #
 # Usage: packaging/set-version.sh <version>      e.g. 1.2.3 or 1.2.3-rc1
-# Portable across GNU and BSD userlands (Linux, macOS, Git Bash on Windows).
+# Portable across GNU and BSD userlands (Linux, macOS, Git Bash on Windows),
+# and tolerant of CRLF checkouts.
 set -eu
 
 version="${1:?usage: $0 <version>}"
-case "$version" in
-  [0-9]*.[0-9]*.[0-9]*) ;;
-  *) echo "not a semver version: $version" >&2; exit 1 ;;
-esac
+if ! printf '%s\n' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$'; then
+  echo "not a release version (X.Y.Z or X.Y.Z-suffix): $version" >&2
+  exit 1
+fi
 
 cd "$(dirname "$0")/.."
 
@@ -29,8 +30,13 @@ awk -v v="$version" '
 # Cargo.lock: the version line right after `name = "aggrega"`.
 awk -v v="$version" '
   pending && /^version = "/ { print "version = \"" v "\""; pending = 0; next }
-  { pending = ($0 == "name = \"aggrega\""); print }
+  { pending = ($0 ~ /^name = "aggrega"\r?$/); print }
 ' Cargo.lock > Cargo.lock.tmp && mv Cargo.lock.tmp Cargo.lock
 
-grep -m1 '^version' Cargo.toml
-grep -A1 '^name = "aggrega"$' Cargo.lock | tail -n1
+# Fail loudly rather than leave a half-stamped tree for `--locked` to trip on.
+want="version = \"$version\""
+grep -m1 '^version = ' Cargo.toml | tr -d '\r' | grep -Fqx "$want" \
+  || { echo "Cargo.toml was not updated" >&2; exit 1; }
+grep -A1 '^name = "aggrega"' Cargo.lock | tail -n1 | tr -d '\r' | grep -Fqx "$want" \
+  || { echo "Cargo.lock was not updated" >&2; exit 1; }
+echo "$want"

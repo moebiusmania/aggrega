@@ -89,9 +89,11 @@ fn main() -> Result<()> {
     let store =
         Store::open(&paths.db).with_context(|| format!("opening {}", paths.db.display()))?;
     let ui = AppWindow::new()?;
-    // Lets the desktop match the window to aggrega.desktop (taskbar icon/name).
+    // Lets the desktop match the window to its .desktop file (taskbar icon and
+    // name): aggrega.desktop, or the app ID's file inside a Flatpak.
     // Needs the platform created by `AppWindow::new`, and must precede `run`.
-    slint::set_xdg_app_id("aggrega")?;
+    let app_id = std::env::var("FLATPAK_ID").unwrap_or_else(|_| "aggrega".into());
+    slint::set_xdg_app_id(app_id)?;
 
     let app = setup(&ui, store, paths)?;
 
