@@ -207,6 +207,93 @@ component ActionCard inherits Rectangle {
     }
 }
 
+// An on/off switch.
+component Toggle inherits Rectangle {
+    in property <bool> on;
+    in property <string> label;
+    callback toggled();
+
+    accessible-role: checkbox;
+    accessible-checkable: true;
+    accessible-checked: root.on;
+    accessible-label: root.label;
+    accessible-action-default => { root.toggled(); }
+
+    width: 44px;
+    height: 24px;
+    border-radius: self.height / 2;
+    background: root.on ? Theme.accent : Theme.chip;
+    border-width: 1px;
+    border-color: root.on ? Theme.accent : Theme.rule;
+    animate background, border-color { duration: 200ms; }
+
+    Rectangle {
+        width: 18px;
+        height: 18px;
+        y: (parent.height - self.height) / 2;
+        x: root.on ? parent.width - self.width - 3px : 3px;
+        border-radius: self.height / 2;
+        background: root.on ? white : Theme.text-muted;
+        animate x { duration: 260ms; easing: cubic-bezier(0.3, 1.4, 0.5, 1); }
+        animate background { duration: 200ms; }
+    }
+
+    TouchArea {
+        mouse-cursor: pointer;
+        clicked => { root.toggled(); }
+    }
+}
+
+// A newer version of Aggrega is out.
+component UpdateNotice inherits Rectangle {
+    in property <string> version;
+    callback open();
+
+    border-radius: 4px;
+    border-width: 1px;
+    border-color: Theme.accent;
+    background: Theme.bg;
+
+    HorizontalLayout {
+        padding: 18px;
+        spacing: 14px;
+        VerticalLayout {
+            alignment: start;
+            Image {
+                source: Icons.download;
+                width: 20px;
+                height: 20px;
+                colorize: Theme.accent;
+            }
+        }
+        VerticalLayout {
+            horizontal-stretch: 1;
+            spacing: 4px;
+            Text {
+                text: @tr("Aggrega {} is out", root.version);
+                font-family: Fonts.sans-bold;
+                font-weight: 700;
+                font-size: 14px;
+                color: Theme.ink;
+            }
+            Text {
+                text: @tr("Its release page on GitHub has the release notes and the downloads for every platform.");
+                wrap: word-wrap;
+                font-family: Fonts.serif;
+                font-size: 14.5px;
+                color: Theme.text-body;
+            }
+        }
+        VerticalLayout {
+            alignment: center;
+            PrimaryButton {
+                text: @tr("Get it");
+                clicked => { root.open(); }
+            }
+        }
+    }
+}
+
 // Moving sources in and out of Aggrega as OPML.
 component TransferPane inherits VerticalLayout {
     in property <bool> has-feeds;
@@ -610,8 +697,17 @@ component AboutPane inherits VerticalLayout {
     in property <string> repository;
     in property <string> db-path;
     in property <string> thumbs-path;
+    in property <bool> update-check-available;
+    in property <bool> update-check-auto;
+    in property <bool> update-checking;
+    in property <string> update-note;
+    in property <bool> update-note-error;
+    in property <string> update-version;
+    in property <string> update-url;
     callback open-link(string);
     callback open-data-folder(bool);
+    callback set-update-check(bool);
+    callback check-for-updates();
 
     padding: 40px;
     padding-top: 38px;
@@ -667,7 +763,7 @@ component AboutPane inherits VerticalLayout {
         height: 4px;
     }
     Text {
-        text: @tr("A fast, lightweight feed reader for RSS, Atom and JSON Feed. Everything stays on this computer: no account, no cloud, no tracking. Aggrega only goes online to fetch your sources, their pictures and the articles you open, and, while the Sync tab is open, to talk to other copies of Aggrega on your network.");
+        text: @tr("A fast, lightweight feed reader for RSS, Atom and JSON Feed. Everything stays on this computer: no account, no cloud, no tracking. Aggrega only goes online to fetch your sources, their pictures and the articles you open, while the Sync tab is open to talk to other copies of Aggrega on your network, and, only if you ask it to, to check for new versions.");
         wrap: word-wrap;
         font-family: Fonts.serif;
         font-size: 15.5px;
@@ -704,6 +800,75 @@ component AboutPane inherits VerticalLayout {
             value: @tr("Report a bug or suggest an idea");
             action: @tr("Open");
             act => { root.open-link(root.repository + "/issues"); }
+        }
+    }
+
+    // The opt-in check for new versions (README: "No telemetry…").
+    if root.update-check-available: VerticalLayout {
+        padding-top: 26px;
+        spacing: 12px;
+        SectionKicker {
+            text: @tr("UPDATES");
+        }
+        if root.update-version != "": UpdateNotice {
+            version: root.update-version;
+            open => { root.open-link(root.update-url); }
+        }
+        Rectangle {
+            border-radius: 4px;
+            border-width: 1px;
+            border-color: Theme.rule;
+            background: Theme.bg;
+
+            HorizontalLayout {
+                padding: 18px;
+                spacing: 14px;
+                VerticalLayout {
+                    horizontal-stretch: 1;
+                    spacing: 4px;
+                    Text {
+                        text: @tr("Check for new versions once a day");
+                        wrap: word-wrap;
+                        font-family: Fonts.sans-bold;
+                        font-weight: 700;
+                        font-size: 14px;
+                        color: Theme.ink;
+                    }
+                    Text {
+                        text: @tr("Off unless you turn it on. Aggrega then asks api.github.com for its latest release about once a day, never while you're offline. The request carries nothing but “aggrega/{}” as its user agent: no ID, nothing about you or what you read.", root.version);
+                        wrap: word-wrap;
+                        font-family: Fonts.serif;
+                        font-size: 14.5px;
+                        color: Theme.text-body;
+                    }
+                }
+                VerticalLayout {
+                    alignment: center;
+                    Toggle {
+                        label: @tr("Check for new versions once a day");
+                        on: root.update-check-auto;
+                        toggled => { root.set-update-check(!root.update-check-auto); }
+                    }
+                }
+            }
+        }
+        HorizontalLayout {
+            spacing: 14px;
+            alignment: start;
+            GhostButton {
+                text: root.update-checking ? @tr("Checking…") : @tr("Check now");
+                enabled: !root.update-checking;
+                clicked => { root.check-for-updates(); }
+            }
+            Text {
+                text: root.update-note;
+                vertical-alignment: center;
+                wrap: word-wrap;
+                font-family: Fonts.sans-semibold;
+                font-weight: 600;
+                font-size: 13px;
+                color: root.update-note-error ? Theme.danger : Theme.text-muted;
+            }
         }
     }
 
@@ -784,6 +949,13 @@ export component SettingsDialog inherits Rectangle {
     in property <bool> sync-note-error;
     in property <int> refresh-minutes;
     in property <int> zoom-percent;
+    in property <bool> update-check-available;
+    in property <bool> update-check-auto;
+    in property <bool> update-checking;
+    in property <string> update-note;
+    in property <bool> update-note-error;
+    in property <string> update-version;
+    in property <string> update-url;
     callback closed();
     callback import-sources();
     callback sync-connect(string);
@@ -792,6 +964,8 @@ export component SettingsDialog inherits Rectangle {
     callback open-data-folder(bool);
     callback step-refresh-interval(bool);
     callback zoom(int);
+    callback set-update-check(bool);
+    callback check-for-updates();
 
     out property <bool> shown: false;
     in-out property <int> tab: 0;
@@ -932,6 +1106,15 @@ export component SettingsDialog inherits Rectangle {
                         thumbs-path: root.thumbs-path;
                         open-link(url) => { root.open-link(url); }
                         open-data-folder(thumbs) => { root.open-data-folder(thumbs); }
+                        update-check-available: root.update-check-available;
+                        update-check-auto: root.update-check-auto;
+                        update-checking: root.update-checking;
+                        update-note: root.update-note;
+                        update-note-error: root.update-note-error;
+                        update-version: root.update-version;
+                        update-url: root.update-url;
+                        set-update-check(on) => { root.set-update-check(on); }
+                        check-for-updates => { root.check-for-updates(); }
                     }
                 }
 

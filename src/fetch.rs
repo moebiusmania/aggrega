@@ -154,11 +154,19 @@ fn get(
     headers: &[(&str, &str)],
     limit: u64,
 ) -> Result<Response, Error> {
+    // A `User-Agent` in `headers` replaces the usual one.
+    let user_agent = headers
+        .iter()
+        .find(|(k, _)| k.eq_ignore_ascii_case("user-agent"))
+        .map_or(USER_AGENT, |(_, v)| *v);
     let mut req = agent
         .get(url)
-        .header("User-Agent", USER_AGENT)
+        .header("User-Agent", user_agent)
         .header("Accept", accept);
-    for (k, v) in headers {
+    for (k, v) in headers
+        .iter()
+        .filter(|(k, _)| !k.eq_ignore_ascii_case("user-agent"))
+    {
         req = req.header(*k, *v);
     }
     let mut resp = req.call().map_err(|e| Error::from_ureq(url, e))?;
@@ -330,6 +338,24 @@ pub fn download_image(agent: &ureq::Agent, url: &str) -> Result<Vec<u8>, Error> 
     Ok(r.body)
 }
 
+/// Downloads a GitHub release description for the update check, sending
+/// nothing but `aggrega/<version>` as the user agent. `Ok(None)` when there's
+/// no release yet (GitHub answers 404).
+pub fn fetch_release(agent: &ureq::Agent, url: &str, limit: u64) -> Result<Option<Vec<u8>>, Error> {
+    const UPDATE_AGENT: &str = concat!("aggrega/", env!("CARGO_PKG_VERSION"));
+    let r = get(
+        agent,
+        url,
+        "application/vnd.github+json",
+        &[("User-Agent", UPDATE_AGENT)],
+        limit,
+    )?;
+    if r.status == 404 {
+        return Ok(None);
+    }
+    Ok(Some(r.error_for_status(url)?.body))
+}
+
 /// Answers the next `connections` HTTP requests on a local port with `body`
 /// as `content_type`, and returns the server's address.
 #[cfg(test)]
@@ -434,6 +460,46 @@ mod tests {
             panic!("the body wasn't limited");
         };
         assert!(matches!(err, Error::TooLarge { limit: 10, .. }), "{err}");
+    }
+
+    #[test]
+    fn the_update_check_sends_only_its_user_agent() {
+        use std::io::{BufRead, BufReader, Write};
+
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/latest", listener.local_addr().unwrap());
+        let server = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let request: Vec<String> = BufReader::new(&stream)
+                .lines()
+                .map_while(Result::ok)
+                .take_while(|l| !l.is_empty())
+                .collect();
+            let _ = stream.write_all(
+                b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            );
+            request
+        });
+
+        assert!(matches!(fetch_release(&agent(), &url, 1024), Ok(None)));
+        let request = server.join().unwrap();
+        let agents: Vec<_> = request
+            .iter()
+            .map(|l| l.to_ascii_lowercase())
+            .filter(|l| l.starts_with("user-agent:"))
+            .collect();
+        assert_eq!(
+            agents,
+            [format!("user-agent: aggrega/{}", env!("CARGO_PKG_VERSION")).to_ascii_lowercase()],
+            "{request:?}"
+        );
+        assert!(
+            !request.iter().any(|l| {
+                let l = l.to_ascii_lowercase();
+                l.starts_with("cookie") || l.starts_with("authorization")
+            }),
+            "{request:?}"
+        );
     }
 
     #[test]

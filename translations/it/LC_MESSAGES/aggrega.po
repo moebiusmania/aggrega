@@ -243,8 +243,8 @@ msgstr "INFORMAZIONI"
 msgid "Aggrega icon"
 msgstr "Icona di Aggrega"
 
-msgid "A fast, lightweight feed reader for RSS, Atom and JSON Feed. Everything stays on this computer: no account, no cloud, no tracking. Aggrega only goes online to fetch your sources, their pictures and the articles you open, and, while the Sync tab is open, to talk to other copies of Aggrega on your network."
-msgstr "Un lettore di feed veloce e leggero per RSS, Atom e JSON Feed. Tutto resta su questo computer: niente account, niente cloud, nessun tracciamento. Aggrega va online solo per scaricare le tue fonti, le loro immagini e gli articoli che apri e, mentre la scheda Sincronizzazione è aperta, per parlare con altre copie di Aggrega nella tua rete."
+msgid "A fast, lightweight feed reader for RSS, Atom and JSON Feed. Everything stays on this computer: no account, no cloud, no tracking. Aggrega only goes online to fetch your sources, their pictures and the articles you open, while the Sync tab is open to talk to other copies of Aggrega on your network, and, only if you ask it to, to check for new versions."
+msgstr "Un lettore di feed veloce e leggero per RSS, Atom e JSON Feed. Tutto resta su questo computer: niente account, niente cloud, nessun tracciamento. Aggrega va online solo per scaricare le tue fonti, le loro immagini e gli articoli che apri, mentre la scheda Sincronizzazione è aperta per parlare con altre copie di Aggrega nella tua rete e, solo se glielo chiedi, per cercare nuove versioni."
 
 msgid "Version"
 msgstr "Versione"
@@ -696,3 +696,53 @@ msgstr "la connessione è caduta prima che arrivasse l'intero database"
 
 msgid "couldn't save the received database: {}"
 msgstr "impossibile salvare il database ricevuto: {}"
+
+# App update check (Settings › About).
+
+msgid "v{} is out"
+msgstr "v{} disponibile"
+
+msgid "Aggrega {} is available"
+msgstr "Aggrega {} è disponibile"
+
+msgid "Aggrega {} is out"
+msgstr "È uscito Aggrega {}"
+
+msgid "Its release page on GitHub has the release notes and the downloads for every platform."
+msgstr "La sua pagina su GitHub ha le note di rilascio e i download per ogni piattaforma."
+
+msgid "Get it"
+msgstr "Scarica"
+
+msgid "UPDATES"
+msgstr "AGGIORNAMENTI"
+
+msgid "Check for new versions once a day"
+msgstr "Cerca nuove versioni una volta al giorno"
+
+msgid "Off unless you turn it on. Aggrega then asks api.github.com for its latest release about once a day, never while you're offline. The request carries nothing but “aggrega/{}” as its user agent: no ID, nothing about you or what you read."
+msgstr "Disattivato finché non lo attivi. Allora Aggrega chiede ad api.github.com la sua ultima versione circa una volta al giorno, mai mentre sei offline. La richiesta contiene solo “aggrega/{}” come user agent: nessun identificativo, niente su di te o su ciò che leggi."
+
+msgid "Checking…"
+msgstr "Controllo…"
+
+msgid "Check now"
+msgstr "Controlla ora"
+
+msgid "Couldn't save the update setting"
+msgstr "Impossibile salvare l'impostazione degli aggiornamenti"
+
+msgid "You have the latest version, {}"
+msgstr "Hai l'ultima versione, la {}"
+
+msgid "Couldn't check: {}"
+msgstr "Impossibile controllare: {}"
+
+msgid "GitHub is turning requests away for now. Try again later"
+msgstr "GitHub sta rifiutando le richieste. Riprova più tardi"
+
+msgid "GitHub's answer couldn't be read"
+msgstr "impossibile leggere la risposta di GitHub"
+
+msgid "the latest release, “{}”, isn't a version Aggrega understands"
+msgstr "l'ultima versione, “{}”, non è un numero di versione che Aggrega capisce"

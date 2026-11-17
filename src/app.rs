@@ -24,6 +24,7 @@ use crate::ops::{self, AddedSource, Core, ImportSummary};
 use crate::profile::Paths;
 use crate::reader::{self, Block, Kind};
 use crate::search;
+use crate::update::{self, Release};
 use crate::{
     AppWindow, ArticleItem, BlockKind, FeedItem, ReaderBlock, ReaderInfo, SyncPeer, pool, sync,
     text, thumbs,
@@ -47,6 +48,10 @@ const DEFAULT_REFRESH_MINUTES: i64 = 20;
 /// Zoom levels in percent, stepped through by Ctrl/Cmd + and -.
 const ZOOM_STEPS: [i64; 7] = [80, 90, 100, 110, 125, 140, 160];
 const DEFAULT_ZOOM: i64 = 100;
+
+/// How long the daily update check waits before trying again after it
+/// couldn't reach GitHub.
+const UPDATE_RETRY_SECS: i64 = 60 * 60;
 
 thread_local! {
     /// The application state lives on the UI thread; worker threads reach it
@@ -170,6 +175,15 @@ pub struct App {
     terms_dirty: Cell<bool>,
     /// Runs the search once typing pauses.
     search_timer: slint::Timer,
+    /// The daily update check is on (the local setting `update_check`).
+    update_auto: Cell<bool>,
+    update_checking: Cell<bool>,
+    /// Someone pressed "Check now" for the running check, so it reports back.
+    update_manual: Cell<bool>,
+    /// When the daily check last tried this session, reached GitHub or not.
+    update_attempt: Cell<Option<i64>>,
+    /// Where the check asks: `update::LATEST_URL`, except in tests.
+    update_source: RefCell<String>,
 }
 
 impl App {
@@ -207,6 +221,19 @@ impl App {
         select_language(lang);
         ui.set_language(lang.code().into());
         ui.set_today(i18n::long_date(chrono::Local::now()).into());
+        let update_auto =
+            update::AVAILABLE && store.setting("update_check")?.as_deref() == Some("1");
+        ui.set_update_check_available(update::AVAILABLE);
+        ui.set_update_check_auto(update_auto);
+        // A newer release found earlier, unless this build has caught up since.
+        let latest = store
+            .setting("latest_release")?
+            .and_then(|saved| Release::decode(&saved));
+        if let (true, update::Status::Available(release)) =
+            (update::AVAILABLE, update::compare(update::CURRENT, latest))
+        {
+            show_release(ui, Some(&release));
+        }
         let app = Rc::new(App {
             ui: ui.as_weak(),
             store,
@@ -247,6 +274,11 @@ impl App {
             terms_loading: Cell::new(false),
             terms_dirty: Cell::new(false),
             search_timer: slint::Timer::default(),
+            update_auto: Cell::new(update_auto),
+            update_checking: Cell::new(false),
+            update_manual: Cell::new(false),
+            update_attempt: Cell::new(None),
+            update_source: RefCell::new(update::LATEST_URL.into()),
         });
         APP.with(|cell| {
             let _ = cell.set(app.clone());
@@ -515,6 +547,7 @@ impl App {
             }
         }
         self.update_status();
+        self.auto_update_check();
     }
 
     // ---- thumbnails --------------------------------------------------------
@@ -1554,11 +1587,132 @@ impl App {
         }
     }
 
+    // ---- app updates -------------------------------------------------------
+
+    /// Settings › About: turns the daily update check on or off.
+    pub fn set_update_check(&self, on: bool) {
+        if !update::AVAILABLE {
+            return;
+        }
+        self.update_auto.set(on);
+        self.ui().set_update_check_auto(on);
+        if let Err(e) = self
+            .store
+            .set_setting("update_check", if on { "1" } else { "0" })
+        {
+            self.report(tr!("Couldn't save the update setting"), &e);
+        }
+        if on {
+            self.auto_update_check();
+        }
+    }
+
+    /// "Check now": asks right away, whether or not the daily check is on.
+    pub fn check_for_updates(&self) {
+        self.start_update_check(true);
+    }
+
+    /// Runs once a minute from `tick`: the daily check, if it's on and due.
+    /// Never while offline, and at most once a day once GitHub has answered.
+    fn auto_update_check(&self) {
+        if !update::AVAILABLE || !self.update_auto.get() || self.offline.get() {
+            return;
+        }
+        let now = now();
+        // A time in the future (the clock was turned back) counts as due.
+        let due = |at: Option<i64>, wait: i64| at.is_none_or(|t| t > now || now - t >= wait);
+        let last = self
+            .store
+            .setting("last_update_check")
+            .ok()
+            .flatten()
+            .and_then(|v| v.parse().ok());
+        if due(last, update::INTERVAL_SECS) && due(self.update_attempt.get(), UPDATE_RETRY_SECS) {
+            self.start_update_check(false);
+        }
+    }
+
+    fn start_update_check(&self, manual: bool) {
+        if !update::AVAILABLE {
+            return;
+        }
+        let ui = self.ui();
+        if manual {
+            self.update_manual.set(true);
+            ui.set_update_note(SharedString::new());
+            ui.set_update_note_error(false);
+        } else {
+            self.update_attempt.set(Some(now()));
+        }
+        if self.update_checking.replace(true) {
+            // Already asking: the answer will do for both.
+            return;
+        }
+        ui.set_update_checking(true);
+        let agent = self.core.agent().clone();
+        let url = self.update_source.borrow().clone();
+        std::thread::spawn(move || {
+            let result = update::check(&agent, &url);
+            let _ =
+                slint::invoke_from_event_loop(move || with_app(|app| app.update_checked(result)));
+        });
+    }
+
+    fn update_checked(&self, result: Result<update::Status, update::Error>) {
+        let manual = self.update_manual.replace(false);
+        self.update_checking.set(false);
+        let ui = self.ui();
+        ui.set_update_checking(false);
+        let reached = !matches!(
+            result,
+            Err(update::Error::Fetch(fetch::Error::Unreachable { .. }))
+        );
+        if reached {
+            let _ = self
+                .store
+                .set_setting("last_update_check", &now().to_string());
+        }
+        match result {
+            Ok(update::Status::Available(release)) => {
+                show_release(&ui, Some(&release));
+                let _ = self.store.set_setting("latest_release", &release.encode());
+            }
+            Ok(update::Status::UpToDate) => {
+                show_release(&ui, None);
+                let _ = self.store.set_setting("latest_release", "");
+                if manual {
+                    ui.set_update_note(
+                        tr!("You have the latest version, {}", update::CURRENT).into(),
+                    );
+                }
+            }
+            Err(e) => {
+                eprintln!("aggrega: update check failed: {}", chain(&e));
+                // The daily check stays quiet; only "Check now" reports back.
+                if manual {
+                    ui.set_update_note(tr!("Couldn't check: {}", e.describe()).into());
+                    ui.set_update_note_error(true);
+                }
+            }
+        }
+    }
+
     pub fn save_theme(&self, dark: bool) {
         let _ = self
             .store
             .set_setting("theme", if dark { "dark" } else { "light" });
     }
+}
+
+/// Shows the notice for a newer `release`, or hides it.
+fn show_release(ui: &AppWindow, release: Option<&Release>) {
+    ui.set_update_version(
+        release
+            .map(|r| r.version.to_string())
+            .unwrap_or_default()
+            .into(),
+    );
+    ui.set_update_url(release.map(|r| r.url.clone()).unwrap_or_default().into());
 }
 
 fn import_message(s: &ImportSummary) -> String {
@@ -1783,6 +1937,25 @@ impl Describe for sync::Problem {
     }
 }
 
+impl Describe for update::Error {
+    fn describe(&self) -> String {
+        match self {
+            // GitHub's limit for requests without an account.
+            Self::Fetch(fetch::Error::Status {
+                status: 403 | 429, ..
+            }) => tr!("GitHub is turning requests away for now. Try again later"),
+            Self::Fetch(e) => e.describe(),
+            Self::Malformed(_) | Self::NotARelease => tr!("GitHub's answer couldn't be read"),
+            Self::BadTag { tag } => {
+                tr!(
+                    "the latest release, “{}”, isn't a version Aggrega understands",
+                    tag
+                )
+            }
+        }
+    }
+}
+
 impl Describe for error::Error {
     fn describe(&self) -> String {
         match self {
@@ -1895,8 +2068,10 @@ mod tests {
             .unwrap();
         let ui = AppWindow::new().unwrap();
         let app = setup(&ui, store, paths).unwrap();
-        // Sync never leaves this computer in tests.
+        // Sync never leaves this computer in tests, and update checks go nowhere.
         app.sync_config.replace(loopback());
+        app.update_source
+            .replace("http://127.0.0.1:9/latest".into());
         app.reload_all();
         // Headless windows start at 0×0, where every element counts as clipped away.
         ui.window().set_size(slint::LogicalSize::new(1240., 820.));
@@ -2310,15 +2485,20 @@ mod tests {
         button("About").invoke_accessible_default_action();
         assert!(shows(env!("CARGO_PKG_VERSION")));
         assert!(shows(env!("CARGO_PKG_REPOSITORY")));
-        assert!(shows(dir.path().join("aggrega.db").to_str().unwrap()));
         assert!(shows("License: Read"), "links to the license text");
         assert!(!shows("Take your edition with you"));
+        let scroll = |delta_y| {
+            ui.window().dispatch_event(WindowEvent::PointerScrolled {
+                position: slint::LogicalPosition::new(700., 400.),
+                delta_x: 0.,
+                delta_y,
+            })
+        };
+        // Below the Updates section.
+        scroll(-500.);
+        assert!(shows(dir.path().join("aggrega.db").to_str().unwrap()));
         // Slint Royalty-free License attribution, at the bottom of the pane.
-        ui.window().dispatch_event(WindowEvent::PointerScrolled {
-            position: slint::LogicalPosition::new(700., 400.),
-            delta_x: 0.,
-            delta_y: -2000.,
-        });
+        scroll(-2000.);
         assert!(shows("#MadeWithSlint"));
 
         press(&ui, Key::Escape);
@@ -2413,6 +2593,193 @@ mod tests {
         // Saved values outside the range are pulled back into it.
         assert_eq!(clamp_refresh_minutes(1), 5);
         assert_eq!(clamp_refresh_minutes(600), 120);
+    }
+
+    fn release(version: &str) -> Release {
+        Release {
+            version: update::Version::parse(version).unwrap(),
+            url: format!("https://github.com/moebiusmania/aggrega/releases/tag/v{version}"),
+        }
+    }
+
+    #[test]
+    fn the_update_check_is_off_until_turned_on() {
+        let _udp = sync::udp_ports();
+        let (ui, app, _dir) = start("update-toggle");
+        let element = |label: &str| {
+            ElementHandle::find_by_accessible_label(&ui, label)
+                .next()
+                .unwrap_or_else(|| panic!("{label}"))
+        };
+        let saved = |key: &str| app.store.setting(key).unwrap();
+        assert!(!ui.get_update_check_auto());
+        // The daily check doesn't run while it's off.
+        app.tick();
+        assert!(!app.update_checking.get());
+
+        element("Settings").invoke_accessible_default_action();
+        testing::mock_elapsed_time(Duration::from_secs(1));
+        element("About").invoke_accessible_default_action();
+        // The Updates section is below the facts table.
+        ui.window().dispatch_event(WindowEvent::PointerScrolled {
+            position: slint::LogicalPosition::new(700., 400.),
+            delta_x: 0.,
+            delta_y: -400.,
+        });
+        // The switch, not the title next to it.
+        let toggle =
+            ElementHandle::find_by_accessible_label(&ui, "Check for new versions once a day")
+                .find(|e| e.accessible_role() == Some(AccessibleRole::Checkbox))
+                .expect("the switch");
+        assert_eq!(toggle.accessible_checked(), Some(false));
+        assert!(
+            ElementHandle::find_by_accessible_label(&ui, "Check now")
+                .next()
+                .is_some()
+        );
+
+        toggle.invoke_accessible_default_action();
+        assert_eq!(toggle.accessible_checked(), Some(true));
+        assert_eq!(saved("update_check").as_deref(), Some("1"));
+        assert!(app.update_checking.get(), "turning it on checks when due");
+
+        // GitHub couldn't be reached: the daily check stays quiet, and tries
+        // again later rather than waiting a day.
+        let unreachable = || {
+            Err(update::Error::Fetch(fetch::Error::Unreachable {
+                url: update::LATEST_URL.into(),
+                why: fetch::Offline::NoConnection,
+                source: ureq::Error::ConnectionFailed,
+            }))
+        };
+        app.update_checked(unreachable());
+        assert!(!app.update_checking.get());
+        assert_eq!(ui.get_update_note(), "");
+        assert_eq!(saved("last_update_check"), None);
+        app.tick();
+        assert!(!app.update_checking.get(), "not again within the hour");
+
+        // Once GitHub answered, the next check is a day away.
+        app.update_attempt.set(None);
+        app.update_checked(Ok(update::Status::UpToDate));
+        assert!(saved("last_update_check").is_some());
+        app.tick();
+        assert!(!app.update_checking.get(), "at most once a day");
+
+        // Never while offline.
+        app.store.set_setting("last_update_check", "0").unwrap();
+        app.offline.set(true);
+        app.tick();
+        assert!(!app.update_checking.get());
+        app.offline.set(false);
+
+        toggle.invoke_accessible_default_action();
+        assert_eq!(toggle.accessible_checked(), Some(false));
+        assert_eq!(saved("update_check").as_deref(), Some("0"));
+        app.tick();
+        assert!(!app.update_checking.get());
+
+        // "Check now" works with the daily check off, and says how it went.
+        app.check_for_updates();
+        assert!(ui.get_update_checking());
+        app.update_checked(unreachable());
+        assert!(!ui.get_update_checking());
+        assert_eq!(
+            ui.get_update_note(),
+            "Couldn't check: couldn't connect to api.github.com"
+        );
+        assert!(ui.get_update_note_error());
+
+        app.check_for_updates();
+        app.update_checked(Err(update::Error::Fetch(fetch::Error::Status {
+            url: update::LATEST_URL.into(),
+            status: 403,
+        })));
+        assert_eq!(
+            ui.get_update_note(),
+            "Couldn't check: GitHub is turning requests away for now. Try again later"
+        );
+
+        app.check_for_updates();
+        app.update_checked(Ok(update::Status::UpToDate));
+        assert_eq!(
+            ui.get_update_note(),
+            format!("You have the latest version, {}", update::CURRENT)
+        );
+        assert!(!ui.get_update_note_error());
+    }
+
+    #[test]
+    fn a_newer_version_shows_a_notice() {
+        let _udp = sync::udp_ports();
+        let (ui, app, _dir) = start("update-notice");
+        let shows = |label: &str| {
+            ElementHandle::find_by_accessible_label(&ui, label)
+                .next()
+                .is_some()
+        };
+        assert!(!shows("Aggrega 99.0.0 is available"));
+
+        app.update_checked(Ok(update::Status::Available(release("99.0.0"))));
+        assert_eq!(ui.get_update_version(), "99.0.0");
+        assert_eq!(
+            ui.get_update_url(),
+            "https://github.com/moebiusmania/aggrega/releases/tag/v99.0.0"
+        );
+
+        // A quiet pointer under the sidebar's version opens Settings › About.
+        ElementHandle::find_by_accessible_label(&ui, "Aggrega 99.0.0 is available")
+            .next()
+            .expect("sidebar notice")
+            .invoke_accessible_default_action();
+        assert!(ui.get_settings_open());
+        testing::mock_elapsed_time(Duration::from_secs(1));
+        assert!(shows(env!("CARGO_PKG_REPOSITORY")), "on the About tab");
+        ui.window().dispatch_event(WindowEvent::PointerScrolled {
+            position: slint::LogicalPosition::new(700., 400.),
+            delta_x: 0.,
+            delta_y: -400.,
+        });
+        assert!(shows("Aggrega 99.0.0 is out") && shows("Get it"));
+
+        // Kept for the next start (see `a_saved_newer_release_shows_at_startup`)…
+        let saved = app.store.setting("latest_release").unwrap();
+        assert_eq!(saved, Some(release("99.0.0").encode()));
+
+        // …and dropped once a check finds nothing newer.
+        app.update_checked(Ok(update::Status::UpToDate));
+        assert_eq!(ui.get_update_version(), "");
+        assert_eq!(
+            app.store.setting("latest_release").unwrap().as_deref(),
+            Some("")
+        );
+    }
+
+    /// A window over a fresh profile whose last check found `saved`.
+    fn start_with_saved_release(saved: &Release) -> (AppWindow, tempfile::TempDir) {
+        testing::init_no_event_loop();
+        let dir = tempfile::tempdir().unwrap();
+        let paths = Paths::in_dir(dir.path()).unwrap();
+        let store = Store::open(&paths.db).unwrap();
+        store
+            .set_setting("latest_release", &saved.encode())
+            .unwrap();
+        let ui = AppWindow::new().unwrap();
+        setup(&ui, store, paths).unwrap();
+        (ui, dir)
+    }
+
+    #[test]
+    fn a_saved_newer_release_shows_at_startup() {
+        let (ui, _dir) = start_with_saved_release(&release("99.0.0"));
+        assert_eq!(ui.get_update_version(), "99.0.0");
+    }
+
+    #[test]
+    fn a_saved_release_this_build_has_caught_up_with_is_not_shown() {
+        let this_build = release(update::CURRENT);
+        let (ui, _dir) = start_with_saved_release(&this_build);
+        assert_eq!(ui.get_update_version(), "");
     }
 
     #[test]
