@@ -17,6 +17,7 @@ mod search;
 mod sync;
 mod text;
 mod thumbs;
+mod update;
 
 use std::rc::Rc;
 use std::time::Duration;
@@ -61,6 +62,8 @@ fn setup(ui: &AppWindow, store: Store, paths: Paths) -> Result<Rc<App>> {
     ui.on_export_sources(|| with_app(|a| a.export_sources()));
     ui.on_step_refresh_interval(|longer| with_app(|a| a.step_refresh_interval(longer)));
     ui.on_zoom(|step| with_app(|a| a.zoom(step)));
+    ui.on_set_update_check(|on| with_app(|a| a.set_update_check(on)));
+    ui.on_check_for_updates(|| with_app(|a| a.check_for_updates()));
     ui.on_theme_changed(|dark| with_app(|a| a.save_theme(dark)));
     ui.on_language_changed(|code| with_app(|a| a.change_language(code)));
     ui.on_sync_active(|on| with_app(|a| a.sync_active(on)));

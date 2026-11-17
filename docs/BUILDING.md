@@ -85,6 +85,8 @@ Tag a commit that is on `main` (after the PR is merged, not on the PR branch): t
 
 The workflow builds the Arch tarball, the AppImage, the Flatpak, the macOS disk image and the Windows zip in parallel. Once all five succeeded, a last `publish` job creates the GitHub Release for the tag, with generated release notes and the five files attached. If a platform fails, no release is created: re-run the failed job (`gh run rerun <run-id> --failed`) if the failure was transient, or fix it and push a new tag. Tags with a suffix (`v1.0.0-rc1`) become pre-releases.
 
+Builds whose updates come from a package manager can leave out the opt-in update check in Settings → About by setting `AGGREGA_NO_UPDATE_CHECK` (any value) at build time, e.g. `AGGREGA_NO_UPDATE_CHECK=1 cargo build --release`. None of the release jobs set it today: the files on the GitHub Release are installed by hand.
+
 To test the pipeline without a tag, run it from *Actions → Release build → Run workflow*. Pull requests that touch `packaging/` or the workflow run it too. Those runs build everything with the version `0.0.0-ci` and skip `publish`; the files are in the run's artifacts.
 
 ## 4. Tests and linting

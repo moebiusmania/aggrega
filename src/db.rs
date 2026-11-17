@@ -13,8 +13,17 @@ use crate::search;
 pub const SCHEMA_VERSION: i32 = 3;
 
 /// Settings that belong to this computer, kept when a sync pull replaces
-/// the database.
-const LOCAL_SETTINGS: [&str; 4] = ["theme", "refresh_interval", "language", "zoom"];
+/// the database. The update check is among them so that pulling from a
+/// computer that has it on never turns it on here.
+const LOCAL_SETTINGS: [&str; 7] = [
+    "theme",
+    "refresh_interval",
+    "language",
+    "zoom",
+    "update_check",
+    "last_update_check",
+    "latest_release",
+];
 
 /// Why a database operation failed.
 #[derive(Debug, thiserror::Error)]
@@ -817,6 +826,7 @@ mod tests {
         theirs.set_setting("last_refresh", "123")?;
         theirs.set_setting("refresh_interval", "60")?;
         theirs.set_setting("zoom", "125")?;
+        theirs.set_setting("update_check", "1")?;
         assert_eq!(
             theirs.stats()?,
             Stats {
@@ -845,6 +855,11 @@ mod tests {
         );
         assert_eq!(ui.setting("refresh_interval")?, None, "interval stays");
         assert_eq!(ui.setting("zoom")?.as_deref(), Some("90"), "zoom stays");
+        assert_eq!(
+            ui.setting("update_check")?,
+            None,
+            "the update check stays off"
+        );
         let mode: String = ui.conn.query_row("PRAGMA journal_mode", [], |r| r.get(0))?;
         assert_eq!(mode, "wal");
         // Still writable through either connection.

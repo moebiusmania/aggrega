@@ -146,6 +146,7 @@ dependencies = [
  "open",
  "rfd",
  "rusqlite",
+ "serde_json",
  "slint",
  "slint-build",
  "tempfile",
