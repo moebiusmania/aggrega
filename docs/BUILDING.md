@@ -159,7 +159,7 @@ flatpak install --user aggrega-*-x86_64.flatpak
 flatpak run io.github.moebiusmania.Aggrega
 ```
 
-The sandbox only gets network access (feeds and LAN sync), Wayland with an X11 fallback, and the GPU. It has no access to your files: OPML import and export go through the file chooser portal, links open in your browser through the OpenURI portal, and the light/dark preference comes from the settings portal. Data lives inside the sandbox, under `~/.var/app/io.github.moebiusmania.Aggrega/` (`data/aggrega/aggrega.db` and `cache/aggrega/thumbs/`), so it doesn't share a database with the other Linux builds; sync or export/import to move between them.
+The sandbox only gets network access (feeds, LAN sync and the opt-in update check), Wayland with an X11 fallback, and the GPU. It has no access to your files: OPML import and export go through the file chooser portal, links open in your browser through the OpenURI portal, and the light/dark preference comes from the settings portal. Data lives inside the sandbox, under `~/.var/app/io.github.moebiusmania.Aggrega/` (`data/aggrega/aggrega.db` and `cache/aggrega/thumbs/`), so it doesn't share a database with the other Linux builds; sync or export/import to move between them.
 
 To build it yourself you need `flatpak`, `flatpak-builder`, the Flathub remote (`flatpak remote-add --user --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo`) and `python3`:
 

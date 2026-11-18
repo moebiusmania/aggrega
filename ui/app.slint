@@ -369,7 +369,7 @@ export component AppWindow inherits Window {
                 add => { root.open-add-dialog(); }
                 settings => { settings-dialog.open(); }
                 show-update => {
-                    settings-dialog.tab = 4;
+                    settings-dialog.tab = settings-dialog.about-tab;
                     settings-dialog.open();
                 }
                 remove(id, name) => { confirm.ask(id, name); }

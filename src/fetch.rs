@@ -14,6 +14,8 @@ const USER_AGENT: &str = concat!(
     env!("CARGO_PKG_VERSION"),
     " (desktop feed reader)"
 );
+/// The update check's user agent (see `fetch_release`).
+pub const UPDATE_AGENT: &str = "aggrega";
 const MAX_FEED_BYTES: u64 = 16 * 1024 * 1024;
 const MAX_IMAGE_BYTES: u64 = 8 * 1024 * 1024;
 const MAX_PAGE_BYTES: u64 = 8 * 1024 * 1024;
@@ -154,19 +156,23 @@ fn get(
     headers: &[(&str, &str)],
     limit: u64,
 ) -> Result<Response, Error> {
-    // A `User-Agent` in `headers` replaces the usual one.
-    let user_agent = headers
-        .iter()
-        .find(|(k, _)| k.eq_ignore_ascii_case("user-agent"))
-        .map_or(USER_AGENT, |(_, v)| *v);
+    get_as(agent, USER_AGENT, url, accept, headers, limit)
+}
+
+/// `get` with another `User-Agent`.
+fn get_as(
+    agent: &ureq::Agent,
+    user_agent: &str,
+    url: &str,
+    accept: &str,
+    headers: &[(&str, &str)],
+    limit: u64,
+) -> Result<Response, Error> {
     let mut req = agent
         .get(url)
         .header("User-Agent", user_agent)
         .header("Accept", accept);
-    for (k, v) in headers
-        .iter()
-        .filter(|(k, _)| !k.eq_ignore_ascii_case("user-agent"))
-    {
+    for (k, v) in headers {
         req = req.header(*k, *v);
     }
     let mut resp = req.call().map_err(|e| Error::from_ureq(url, e))?;
@@ -338,16 +344,17 @@ pub fn download_image(agent: &ureq::Agent, url: &str) -> Result<Vec<u8>, Error> 
     Ok(r.body)
 }
 
-/// Downloads a GitHub release description for the update check, sending
-/// nothing but `aggrega/<version>` as the user agent. `Ok(None)` when there's
+/// Downloads a GitHub release description for the update check. The user
+/// agent is just `aggrega`, without the version: the comparison happens here,
+/// so GitHub has no need to know which version asks. `Ok(None)` when there's
 /// no release yet (GitHub answers 404).
 pub fn fetch_release(agent: &ureq::Agent, url: &str, limit: u64) -> Result<Option<Vec<u8>>, Error> {
-    const UPDATE_AGENT: &str = concat!("aggrega/", env!("CARGO_PKG_VERSION"));
-    let r = get(
+    let r = get_as(
         agent,
+        UPDATE_AGENT,
         url,
         "application/vnd.github+json",
-        &[("User-Agent", UPDATE_AGENT)],
+        &[],
         limit,
     )?;
     if r.status == 404 {
@@ -463,7 +470,7 @@ mod tests {
     }
 
     #[test]
-    fn the_update_check_sends_only_its_user_agent() {
+    fn the_update_check_sends_no_version_or_credentials() {
         use std::io::{BufRead, BufReader, Write};
 
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
@@ -488,16 +495,20 @@ mod tests {
             .map(|l| l.to_ascii_lowercase())
             .filter(|l| l.starts_with("user-agent:"))
             .collect();
-        assert_eq!(
-            agents,
-            [format!("user-agent: aggrega/{}", env!("CARGO_PKG_VERSION")).to_ascii_lowercase()],
-            "{request:?}"
-        );
+        assert_eq!(agents, ["user-agent: aggrega"], "no version: {request:?}");
+        // What the README and the About tab say the request carries: the
+        // headers every HTTP client sends, and nothing that identifies anyone.
+        for line in &request[1..] {
+            let name = line.split(':').next().unwrap().to_ascii_lowercase();
+            assert!(
+                ["host", "user-agent", "accept", "accept-encoding"].contains(&name.as_str()),
+                "unexpected header: {line}"
+            );
+        }
         assert!(
-            !request.iter().any(|l| {
-                let l = l.to_ascii_lowercase();
-                l.starts_with("cookie") || l.starts_with("authorization")
-            }),
+            !request
+                .iter()
+                .any(|l| l.contains(env!("CARGO_PKG_VERSION"))),
             "{request:?}"
         );
     }

@@ -67,11 +67,11 @@ export component PrimaryButton inherits Rectangle {
             width: 15px;
             height: 15px;
             y: (parent.height - self.height) / 2;
-            colorize: root.enabled ? white : Theme.text-faint;
+            colorize: root.enabled ? Theme.on-accent : Theme.text-faint;
         }
         Text {
             text: root.text.to-uppercase();
-            color: root.enabled ? white : Theme.text-faint;
+            color: root.enabled ? Theme.on-accent : Theme.text-faint;
             font-family: Fonts.sans-bold;
             font-weight: 700;
             font-size: 12.5px;
@@ -580,7 +580,7 @@ component WindowButton inherits Rectangle {
         source: root.icon;
         width: 16px;
         height: 16px;
-        colorize: touch.has-hover && root.close ? white : touch.has-hover ? Theme.ink : Theme.text-muted;
+        colorize: touch.has-hover && root.close ? Theme.on-accent : touch.has-hover ? Theme.ink : Theme.text-muted;
         animate colorize { duration: 120ms; }
     }
 

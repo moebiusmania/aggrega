@@ -720,8 +720,8 @@ msgstr "AGGIORNAMENTI"
 msgid "Check for new versions once a day"
 msgstr "Cerca nuove versioni una volta al giorno"
 
-msgid "Off unless you turn it on. Aggrega then asks api.github.com for its latest release about once a day, never while you're offline. The request carries nothing but “aggrega/{}” as its user agent: no ID, nothing about you or what you read."
-msgstr "Disattivato finché non lo attivi. Allora Aggrega chiede ad api.github.com la sua ultima versione circa una volta al giorno, mai mentre sei offline. La richiesta contiene solo “aggrega/{}” come user agent: nessun identificativo, niente su di te o su ciò che leggi."
+msgid "Off unless you turn it on. Aggrega then asks api.github.com for its latest release right away, and once a day after that while it's open. The request carries only “aggrega” as its user agent: not even the version, no ID, nothing about you or what you read. Like any website, GitHub sees your IP address."
+msgstr "Disattivato finché non lo attivi. Allora Aggrega chiede subito ad api.github.com la sua ultima versione, e poi una volta al giorno finché resta aperto. La richiesta contiene solo “aggrega” come user agent: nemmeno la versione, nessun identificativo, niente su di te o su ciò che leggi. Come ogni sito web, GitHub vede il tuo indirizzo IP."
 
 msgid "Checking…"
 msgstr "Controllo…"
@@ -734,6 +734,9 @@ msgstr "Impossibile salvare l'impostazione degli aggiornamenti"
 
 msgid "You have the latest version, {}"
 msgstr "Hai l'ultima versione, la {}"
+
+msgid "This build isn't a release, so there's no version to compare it with"
+msgstr "Questa build non è una release, quindi non c'è una versione con cui confrontarla"
 
 msgid "Couldn't check: {}"
 msgstr "Impossibile controllare: {}"

@@ -4,7 +4,8 @@
 //! check: `App` decides when; this module only asks and compares.
 //!
 //! The request is a plain GET of `releases/latest` (which skips drafts and
-//! pre-releases), carrying nothing but a `User-Agent: aggrega/<version>`.
+//! pre-releases) whose user agent is just `aggrega`, without the version (see
+//! `fetch::fetch_release`): the comparison happens here.
 
 use std::cmp::Ordering;
 use std::fmt;
@@ -94,10 +95,21 @@ impl Ord for Version {
                 (None, None) => Ordering::Equal,
                 (Some(_), None) => Ordering::Less,
                 (None, Some(_)) => Ordering::Greater,
-                // Good enough for comparing pre-releases of the same version.
-                (Some(a), Some(b)) => a.cmp(b),
+                (Some(a), Some(b)) => compare_pre(a, b),
             })
     }
+}
+
+/// Semver's order for pre-releases: dot-separated identifiers compared in
+/// turn, numbers numerically and before words, and a shorter list first when
+/// it's a prefix of the other (`rc.2` < `rc.10` < `rc.10.1`). The latest
+/// release is never a pre-release, but this build may be one.
+fn compare_pre(a: &str, b: &str) -> Ordering {
+    let key = |id: &str| match id.parse::<u64>() {
+        Ok(n) if id.bytes().all(|b| b.is_ascii_digit()) => (0, n, String::new()),
+        _ => (1, 0, id.to_string()),
+    };
+    a.split('.').map(key).cmp(b.split('.').map(key))
 }
 
 impl PartialOrd for Version {
@@ -154,6 +166,9 @@ impl Release {
 pub enum Status {
     UpToDate,
     Available(Release),
+    /// This build isn't a release (`0.0.0-dev` from a checkout, `0.0.0-ci`
+    /// from a test run), so it's likely newer than any release, not older.
+    Unreleased,
 }
 
 /// Reads a `releases/latest` answer. `Ok(None)` for a draft or a pre-release,
@@ -180,10 +195,12 @@ pub fn parse_release(json: &[u8]) -> Result<Option<Release>, Error> {
     Ok(Some(Release { version, url }))
 }
 
-/// Whether `latest` is newer than `current`. A build whose own version doesn't
-/// parse is never told to update.
+/// Whether `latest` is newer than `current`. Untagged builds (`0.0.0-…`), or
+/// ones whose version doesn't parse, are never told to update.
 pub fn compare(current: &str, latest: Option<Release>) -> Status {
     match (Version::parse(current), latest) {
+        (None, _) => Status::Unreleased,
+        (Some(c), _) if (c.major, c.minor, c.patch) == (0, 0, 0) => Status::Unreleased,
         (Some(current), Some(release)) if release.version > current => Status::Available(release),
         _ => Status::UpToDate,
     }
@@ -243,6 +260,9 @@ mod tests {
             "a release beats its pre-release"
         );
         assert!(v("1.0.0-rc2") > v("1.0.0-rc1"));
+        assert!(v("1.0.0-rc.10") > v("1.0.0-rc.2"), "numeric identifiers");
+        assert!(v("1.0.0-rc.10.1") > v("1.0.0-rc.10"), "a longer list wins");
+        assert!(v("1.0.0-beta") > v("1.0.0-1"), "words after numbers");
         assert!(v("0.0.1") > v("0.0.0-dev"));
         assert_eq!(v("1.2.3").cmp(&v("v1.2.3+meta")), Ordering::Equal);
     }
@@ -320,12 +340,15 @@ mod tests {
         assert_eq!(compare("1.3.0", latest("1.3.0")), Status::UpToDate);
         assert_eq!(compare("1.4.0", latest("1.3.0")), Status::UpToDate);
         assert_eq!(compare("1.2.0", None), Status::UpToDate);
-        assert_eq!(compare("not a version", latest("1.3.0")), Status::UpToDate);
-        // Untagged builds are older than any release.
+        // A pre-release of this version learns about the release.
         assert!(matches!(
-            compare("0.0.0-dev", latest("0.1.0")),
+            compare("1.3.0-rc1", latest("1.3.0")),
             Status::Available(_)
         ));
+        // Untagged builds are likely ahead of the latest release, not behind.
+        for untagged in ["0.0.0-dev", "0.0.0-ci", "not a version"] {
+            assert_eq!(compare(untagged, latest("1.3.0")), Status::Unreleased);
+        }
     }
 
     #[test]
@@ -333,7 +356,9 @@ mod tests {
         let url = fetch::serve("application/json", LATEST.to_vec(), 1);
         let status = check(&fetch::agent(), &url).unwrap();
         // Dev builds are 0.0.0-dev; release builds carry their tag.
-        if v(CURRENT) < v("1.2.0") {
+        if v(CURRENT).major == 0 && v(CURRENT).minor == 0 && v(CURRENT).patch == 0 {
+            assert_eq!(status, Status::Unreleased);
+        } else if v(CURRENT) < v("1.2.0") {
             assert!(matches!(status, Status::Available(r) if r.version == v("1.2.0")));
         } else {
             assert_eq!(status, Status::UpToDate);
