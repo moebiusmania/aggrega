@@ -214,7 +214,7 @@ export component Sidebar inherits Rectangle {
                         letter-spacing: 0.6px;
                         color: Theme.text-faint;
                     }
-                    // A quiet pointer to Settings › About when a newer version is out.
+                    // A quiet pointer to Settings › Updates when a newer version is out.
                     if root.update-version != "": Text {
                         text: @tr("v{} is out", root.update-version);
                         accessible-role: button;

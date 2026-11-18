@@ -347,7 +347,7 @@ component TransferPane inherits VerticalLayout {
 }
 
 // How often Aggrega refreshes on its own while it's open.
-component UpdatesPane inherits VerticalLayout {
+component RefreshPane inherits VerticalLayout {
     in property <int> minutes;
     callback step(bool);
 
@@ -357,7 +357,7 @@ component UpdatesPane inherits VerticalLayout {
     alignment: start;
 
     DialogHeader {
-        kicker: @tr("Updates");
+        kicker: @tr("Refresh news");
         title: @tr("Fresh stories, on their own");
         subtitle: @tr("While Aggrega is open, it checks your sources for new stories on its own. New ones join the list without interrupting what you're reading. Press F5 to refresh right away.");
         subtitle-color: Theme.text-body;
@@ -705,36 +705,105 @@ component SyncPane inherits VerticalLayout {
     }
 }
 
+// The opt-in check for new versions of Aggrega (README: "No telemetry…").
+component AppUpdatesPane inherits VerticalLayout {
+    in property <bool> auto;
+    in property <bool> checking;
+    in property <string> note;
+    in property <bool> note-error;
+    in property <string> version;
+    in property <string> url;
+    callback open-link(string);
+    callback set-auto(bool);
+    callback check();
+
+    padding: 40px;
+    padding-top: 38px;
+    spacing: 18px;
+    alignment: start;
+
+    DialogHeader {
+        kicker: @tr("Updates");
+        title: @tr("New versions of Aggrega");
+        subtitle: @tr("Aggrega never looks for new versions unless you ask it to. When one is out, its release page on GitHub has the downloads.");
+        subtitle-color: Theme.text-body;
+    }
+    // Where the sidebar's "vX is out" lands.
+    if root.version != "": UpdateNotice {
+        version: root.version;
+        open => { root.open-link(root.url); }
+    }
+    Rectangle {
+        border-radius: 4px;
+        border-width: 1px;
+        border-color: Theme.rule;
+        background: Theme.bg;
+
+        HorizontalLayout {
+            padding: 18px;
+            spacing: 14px;
+            VerticalLayout {
+                horizontal-stretch: 1;
+                spacing: 4px;
+                Text {
+                    text: @tr("Check for new versions once a day");
+                    wrap: word-wrap;
+                    font-family: Fonts.sans-bold;
+                    font-weight: 700;
+                    font-size: 14px;
+                    color: Theme.ink;
+                }
+                Text {
+                    text: @tr("Off unless you turn it on. Aggrega then asks api.github.com for its latest release right away, and once a day after that while it's open. The request carries only “aggrega” as its user agent: not even the version, no ID, nothing about you or what you read. Like any website, GitHub sees your IP address.");
+                    wrap: word-wrap;
+                    font-family: Fonts.serif;
+                    font-size: 14.5px;
+                    color: Theme.text-body;
+                }
+            }
+            VerticalLayout {
+                alignment: center;
+                Toggle {
+                    label: @tr("Check for new versions once a day");
+                    on: root.auto;
+                    toggled => { root.set-auto(!root.auto); }
+                }
+            }
+        }
+    }
+    HorizontalLayout {
+        spacing: 14px;
+        alignment: start;
+        GhostButton {
+            text: root.checking ? @tr("Checking…") : @tr("Check now");
+            enabled: !root.checking;
+            clicked => { root.check(); }
+        }
+        Text {
+            text: root.note;
+            vertical-alignment: center;
+            wrap: word-wrap;
+            font-family: Fonts.sans-semibold;
+            font-weight: 600;
+            font-size: 13px;
+            color: root.note-error ? Theme.danger : Theme.text-muted;
+        }
+    }
+}
+
 component AboutPane inherits VerticalLayout {
     in property <string> version;
     in property <string> repository;
     in property <string> db-path;
     in property <string> thumbs-path;
-    in property <bool> update-check-available;
-    in property <bool> update-check-auto;
-    in property <bool> update-checking;
-    in property <string> update-note;
-    in property <bool> update-note-error;
-    in property <string> update-version;
-    in property <string> update-url;
     callback open-link(string);
     callback open-data-folder(bool);
-    callback set-update-check(bool);
-    callback check-for-updates();
 
     padding: 40px;
     padding-top: 38px;
     spacing: 8px;
     alignment: start;
 
-    // First thing on the tab, where the sidebar's "vX is out" lands.
-    if root.update-check-available && root.update-version != "": VerticalLayout {
-        padding-bottom: 22px;
-        UpdateNotice {
-            version: root.update-version;
-            open => { root.open-link(root.update-url); }
-        }
-    }
     Text {
         text: @tr("ABOUT");
         font-family: Fonts.sans-black;
@@ -821,71 +890,6 @@ component AboutPane inherits VerticalLayout {
             value: @tr("Report a bug or suggest an idea");
             action: @tr("Open");
             act => { root.open-link(root.repository + "/issues"); }
-        }
-    }
-
-    // The opt-in check for new versions (README: "No telemetry…").
-    if root.update-check-available: VerticalLayout {
-        padding-top: 26px;
-        spacing: 12px;
-        SectionKicker {
-            text: @tr("UPDATES");
-        }
-        Rectangle {
-            border-radius: 4px;
-            border-width: 1px;
-            border-color: Theme.rule;
-            background: Theme.bg;
-
-            HorizontalLayout {
-                padding: 18px;
-                spacing: 14px;
-                VerticalLayout {
-                    horizontal-stretch: 1;
-                    spacing: 4px;
-                    Text {
-                        text: @tr("Check for new versions once a day");
-                        wrap: word-wrap;
-                        font-family: Fonts.sans-bold;
-                        font-weight: 700;
-                        font-size: 14px;
-                        color: Theme.ink;
-                    }
-                    Text {
-                        text: @tr("Off unless you turn it on. Aggrega then asks api.github.com for its latest release right away, and once a day after that while it's open. The request carries only “aggrega” as its user agent: not even the version, no ID, nothing about you or what you read. Like any website, GitHub sees your IP address.");
-                        wrap: word-wrap;
-                        font-family: Fonts.serif;
-                        font-size: 14.5px;
-                        color: Theme.text-body;
-                    }
-                }
-                VerticalLayout {
-                    alignment: center;
-                    Toggle {
-                        label: @tr("Check for new versions once a day");
-                        on: root.update-check-auto;
-                        toggled => { root.set-update-check(!root.update-check-auto); }
-                    }
-                }
-            }
-        }
-        HorizontalLayout {
-            spacing: 14px;
-            alignment: start;
-            GhostButton {
-                text: root.update-checking ? @tr("Checking…") : @tr("Check now");
-                enabled: !root.update-checking;
-                clicked => { root.check-for-updates(); }
-            }
-            Text {
-                text: root.update-note;
-                vertical-alignment: center;
-                wrap: word-wrap;
-                font-family: Fonts.sans-semibold;
-                font-weight: 600;
-                font-size: 13px;
-                color: root.update-note-error ? Theme.danger : Theme.text-muted;
-            }
         }
     }
 
@@ -986,8 +990,9 @@ export component SettingsDialog inherits Rectangle {
 
     out property <bool> shown: false;
     in-out property <int> tab: 0;
-    // The About tab's index in the rail below.
-    out property <int> about-tab: 4;
+    // Indexes of the Updates and About tabs in the rail below.
+    out property <int> updates-tab: 4;
+    out property <int> about-tab: 5;
 
     public function open() {
         self.shown = true;
@@ -1058,7 +1063,7 @@ export component SettingsDialog inherits Rectangle {
                         clicked => { root.tab = 1; }
                     }
                     SettingsTab {
-                        label: @tr("Updates");
+                        label: @tr("Refresh news");
                         icon: Icons.refresh;
                         selected: root.tab == 2;
                         clicked => { root.tab = 2; }
@@ -1068,6 +1073,12 @@ export component SettingsDialog inherits Rectangle {
                         icon: Icons.sparkles;
                         selected: root.tab == 3;
                         clicked => { root.tab = 3; }
+                    }
+                    if root.update-check-available: SettingsTab {
+                        label: @tr("Updates");
+                        icon: Icons.download;
+                        selected: root.tab == root.updates-tab;
+                        clicked => { root.tab = root.updates-tab; }
                     }
                     SettingsTab {
                         label: @tr("About");
@@ -1084,7 +1095,7 @@ export component SettingsDialog inherits Rectangle {
 
                 ScrollView {
                     content-width: self.visible-width;
-                    content-height: max(self.visible-height, root.tab == 0 ? transfer-pane.preferred-height : root.tab == 1 ? sync-pane.preferred-height : root.tab == 2 ? updates-pane.preferred-height : root.tab == 3 ? ui-pane.preferred-height : about-pane.preferred-height);
+                    content-height: max(self.visible-height, root.tab == 0 ? transfer-pane.preferred-height : root.tab == 1 ? sync-pane.preferred-height : root.tab == 2 ? refresh-pane.preferred-height : root.tab == 3 ? ui-pane.preferred-height : root.tab == root.updates-tab ? app-updates-pane.preferred-height : about-pane.preferred-height);
 
                     transfer-pane := TransferPane {
                         visible: root.tab == 0;
@@ -1104,7 +1115,7 @@ export component SettingsDialog inherits Rectangle {
                         note-error: root.sync-note-error;
                         connect(address) => { root.sync-connect(address); }
                     }
-                    updates-pane := UpdatesPane {
+                    refresh-pane := RefreshPane {
                         visible: root.tab == 2;
                         width: parent.width;
                         minutes: root.refresh-minutes;
@@ -1116,6 +1127,19 @@ export component SettingsDialog inherits Rectangle {
                         zoom-percent: root.zoom-percent;
                         step(s) => { root.zoom(s); }
                     }
+                    app-updates-pane := AppUpdatesPane {
+                        visible: root.update-check-available && root.tab == root.updates-tab;
+                        width: parent.width;
+                        auto: root.update-check-auto;
+                        checking: root.update-checking;
+                        note: root.update-note;
+                        note-error: root.update-note-error;
+                        version: root.update-version;
+                        url: root.update-url;
+                        open-link(url) => { root.open-link(url); }
+                        set-auto(on) => { root.set-update-check(on); }
+                        check => { root.check-for-updates(); }
+                    }
                     about-pane := AboutPane {
                         visible: root.tab == root.about-tab;
                         width: parent.width;
@@ -1125,15 +1149,6 @@ export component SettingsDialog inherits Rectangle {
                         thumbs-path: root.thumbs-path;
                         open-link(url) => { root.open-link(url); }
                         open-data-folder(thumbs) => { root.open-data-folder(thumbs); }
-                        update-check-available: root.update-check-available;
-                        update-check-auto: root.update-check-auto;
-                        update-checking: root.update-checking;
-                        update-note: root.update-note;
-                        update-note-error: root.update-note-error;
-                        update-version: root.update-version;
-                        update-url: root.update-url;
-                        set-update-check(on) => { root.set-update-check(on); }
-                        check-for-updates => { root.check-for-updates(); }
                     }
                 }
 

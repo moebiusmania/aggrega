@@ -11,7 +11,7 @@
 ## Features
 
 - **No login, local only.** Your subscriptions and read state live in a single SQLite file on your disk.
-- **No telemetry, tracking or analytics.** There is no telemetry, tracking or analytics code in Aggrega. The only network traffic is fetching the feeds, thumbnails and articles you asked for, plus, only while **Settings → Sync** is open, talking to other copies of Aggrega on your local network. Nothing is reported anywhere. The one exception is yours to make: **Settings → About** can check api.github.com for a newer Aggrega, when you press *Check now* or, once a day while Aggrega is open, if you turn the daily check on (it's off by default). That request is a plain GET whose user agent is just `aggrega`: not even the version, no ID, no cookies. Like any website, GitHub sees your IP address.
+- **No telemetry, tracking or analytics.** There is no telemetry, tracking or analytics code in Aggrega. The only network traffic is fetching the feeds, thumbnails and articles you asked for, plus, only while **Settings → Sync** is open, talking to other copies of Aggrega on your local network. Nothing is reported anywhere. The one exception is yours to make: **Settings → Updates** can check api.github.com for a newer Aggrega, when you press *Check now* or, once a day while Aggrega is open, if you turn the daily check on (it's off by default). That request is a plain GET whose user agent is just `aggrega`: not even the version, no ID, no cookies. Like any website, GitHub sees your IP address.
 - **Unlimited sources.** RSS 0.9x/1.0/2.0, Atom and JSON Feed are all supported.
 - **Smart "Add source".** Paste a feed URL, or just a website such as `theverge.com`. Aggrega finds the feed from the page's `<link rel="alternate">` tags or from common paths like `/feed` and `/rss.xml`. YouTube channels work too (paste `youtube.com/@name`), and new videos show up with their thumbnail and description.
 - **OPML import and export.** Bring your subscriptions over from Feedly, Inoreader, NetNewsWire, Miniflux or any other reader: **Settings → Import & export**, or **Import from OPML** on the welcome screen. Folders are flattened, sources you already follow are skipped, and Aggrega tells you how many were added, skipped or couldn't be reached. Export writes every source to a standard OPML 2.0 file.
@@ -141,7 +141,7 @@ aggrega/
 │   ├── article-card.slint
 │   ├── reader.slint    # in-app reader view
 │   ├── dialogs.slint   # add-source, remove and sync confirmation modals
-│   ├── settings.slint  # settings modal (tabbed: Import & export, Sync, Updates, UI, About)
+│   ├── settings.slint  # settings modal (tabbed: Import & export, Sync, Refresh news, UI, Updates, About)
 │   └── icons/          # SVG icons
 ├── assets/
 │   ├── aggrega.svg     # app icon

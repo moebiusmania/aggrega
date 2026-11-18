@@ -41,7 +41,7 @@ const LEAVE_ANIMATION: Duration = Duration::from_millis(560);
 const SEARCH_DEBOUNCE: Duration = Duration::from_millis(150);
 
 /// Background refresh interval choices in minutes, offered by the stepper in
-/// Settings › Updates. Saved values are clamped to the first and last.
+/// Settings › Refresh news. Saved values are clamped to the first and last.
 const REFRESH_STEPS: [i64; 9] = [5, 10, 15, 20, 30, 45, 60, 90, 120];
 const DEFAULT_REFRESH_MINUTES: i64 = 20;
 
@@ -1490,7 +1490,7 @@ impl App {
         self.toast(msg);
     }
 
-    /// Settings › Updates stepper: the next longer or shorter interval.
+    /// Settings › Refresh news stepper: the next longer or shorter interval.
     pub fn step_refresh_interval(&self, longer: bool) {
         let current = self.refresh_minutes.get();
         let next = if longer {
@@ -1592,7 +1592,7 @@ impl App {
 
     // ---- app updates -------------------------------------------------------
 
-    /// Settings › About: turns the daily update check on or off.
+    /// Settings › Updates: turns the daily update check on or off.
     pub fn set_update_check(&self, on: bool) {
         if !update::AVAILABLE {
             return;
@@ -2624,7 +2624,7 @@ mod tests {
 
         button("Settings").invoke_accessible_default_action();
         testing::mock_elapsed_time(Duration::from_secs(1));
-        button("Updates").invoke_accessible_default_action();
+        button("Refresh news").invoke_accessible_default_action();
         assert!(shows("Fresh stories, on their own"));
         assert!(shows("Refresh every 20 minutes"));
 
@@ -2671,13 +2671,7 @@ mod tests {
 
         element("Settings").invoke_accessible_default_action();
         testing::mock_elapsed_time(Duration::from_secs(1));
-        element("About").invoke_accessible_default_action();
-        // The Updates section is below the facts table.
-        ui.window().dispatch_event(WindowEvent::PointerScrolled {
-            position: slint::LogicalPosition::new(700., 400.),
-            delta_x: 0.,
-            delta_y: -400.,
-        });
+        element("Updates").invoke_accessible_default_action();
         // The switch, not the title next to it.
         let toggle =
             ElementHandle::find_by_accessible_label(&ui, "Check for new versions once a day")
@@ -2796,14 +2790,14 @@ mod tests {
             "https://github.com/moebiusmania/aggrega/releases/tag/v99.0.0"
         );
 
-        // A quiet pointer under the sidebar's version opens Settings › About.
+        // A quiet pointer under the sidebar's version opens Settings › Updates.
         ElementHandle::find_by_accessible_label(&ui, "Aggrega 99.0.0 is available")
             .next()
             .expect("sidebar notice")
             .invoke_accessible_default_action();
         assert!(ui.get_settings_open());
         testing::mock_elapsed_time(Duration::from_secs(1));
-        assert!(shows(env!("CARGO_PKG_REPOSITORY")), "on the About tab");
+        assert!(shows("New versions of Aggrega"), "on the Updates tab");
         // At the top of the tab, without scrolling.
         assert!(shows("Aggrega 99.0.0 is out") && shows("Get it"));
 

@@ -63,9 +63,9 @@ export component AppWindow inherits Window {
     in property <bool> sync-busy;
     in property <string> sync-note;
     in property <bool> sync-note-error;
-    // Settings › Updates: minutes between background refreshes.
+    // Settings › Refresh news: minutes between background refreshes.
     in property <int> refresh-minutes;
-    // Settings › About: the opt-in check for new versions of Aggrega. Hidden
+    // Settings › Updates: the opt-in check for new versions of Aggrega. Hidden
     // in builds that leave updates to a package manager.
     in property <bool> update-check-available: true;
     in property <bool> update-check-auto;
@@ -135,7 +135,7 @@ export component AppWindow inherits Window {
     callback sync-active(bool);
     callback sync-connect(string);
     callback sync-confirmed();
-    // Settings › Updates stepper: true for a longer interval.
+    // Settings › Refresh news stepper: true for a longer interval.
     callback step-refresh-interval(bool);
     // +1 zooms in, -1 out, 0 back to 100%.
     callback zoom(int);
@@ -369,7 +369,7 @@ export component AppWindow inherits Window {
                 add => { root.open-add-dialog(); }
                 settings => { settings-dialog.open(); }
                 show-update => {
-                    settings-dialog.tab = settings-dialog.about-tab;
+                    settings-dialog.tab = settings-dialog.updates-tab;
                     settings-dialog.open();
                 }
                 remove(id, name) => { confirm.ask(id, name); }
