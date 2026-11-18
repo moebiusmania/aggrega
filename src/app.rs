@@ -231,12 +231,8 @@ impl App {
         ui.set_update_check_available(update::AVAILABLE);
         ui.set_update_check_auto(update_auto);
         // A newer release found earlier, unless this build has caught up since.
-        let latest = store
-            .setting("latest_release")?
-            .and_then(|saved| Release::decode(&saved));
-        if let (true, update::Status::Available(release)) =
-            (update::AVAILABLE, update::compare(update::CURRENT, latest))
-        {
+        let saved = saved_release(store.setting("latest_release")?, update::CURRENT);
+        if let (true, Some(release)) = (update::AVAILABLE, saved) {
             show_release(ui, Some(&release));
         }
         let app = Rc::new(App {
@@ -1751,6 +1747,15 @@ impl App {
     }
 }
 
+/// The newer release a past check saved, if it's still newer than `current`.
+fn saved_release(saved: Option<String>, current: &str) -> Option<Release> {
+    let latest = saved.and_then(|saved| Release::decode(&saved));
+    match update::compare(current, latest) {
+        update::Status::Available(release) => Some(release),
+        update::Status::UpToDate | update::Status::Unreleased => None,
+    }
+}
+
 /// Shows the notice for a newer `release`, or hides it.
 fn show_release(ui: &AppWindow, release: Option<&Release>) {
     ui.set_update_version(
@@ -2783,6 +2788,7 @@ mod tests {
         };
         assert!(!shows("Aggrega 99.0.0 is available"));
 
+        app.check_for_updates();
         app.update_checked(Ok(update::Status::Available(release("99.0.0"))));
         assert_eq!(ui.get_update_version(), "99.0.0");
         assert_eq!(
@@ -2831,35 +2837,39 @@ mod tests {
     }
 
     #[test]
-    fn a_saved_newer_release_shows_at_startup() {
-        let saved = release("99.0.0").encode();
-        let (ui, _app, _dir) = start_with(&[("latest_release", &saved)]);
-        assert_eq!(ui.get_update_version(), "99.0.0");
+    fn a_saved_newer_release_shows_until_this_build_catches_up() {
+        let saved = || Some(release("1.3.0").encode());
+        assert_eq!(saved_release(saved(), "1.2.0"), Some(release("1.3.0")));
+        assert_eq!(saved_release(saved(), "1.3.0"), None);
+        assert_eq!(saved_release(saved(), "0.0.0-dev"), None, "untagged");
+        assert_eq!(saved_release(Some(String::new()), "1.2.0"), None);
+        assert_eq!(saved_release(None, "1.2.0"), None);
     }
 
     #[test]
-    fn a_saved_release_this_build_has_caught_up_with_is_not_shown() {
-        let saved = release(update::CURRENT).encode();
-        let (ui, _app, _dir) = start_with(&[("latest_release", &saved)]);
-        assert_eq!(ui.get_update_version(), "");
-    }
-
-    #[test]
-    fn the_daily_check_counts_a_day_from_opening() {
+    fn the_daily_check_is_off_by_default() {
         let (_ui, app, _dir) = start_with(&[]);
-        assert!(!app.update_timer.running(), "off by default");
+        assert!(!app.update_timer.running());
+    }
 
-        // Never checked, or not for a day: shortly after opening.
+    #[test]
+    fn the_daily_check_asks_soon_after_opening_when_never_checked() {
+        let (_ui, app, _dir) = start_with(&[("update_check", "1")]);
+        assert_eq!(app.update_timer.interval(), UPDATE_OPENING_DELAY);
+        testing::mock_elapsed_time(UPDATE_OPENING_DELAY);
+        assert!(app.update_checking.get());
+    }
+
+    #[test]
+    fn the_daily_check_asks_soon_after_opening_a_day_after_the_last() {
         let long_ago = (now() - 2 * update::INTERVAL_SECS).to_string();
-        for last in [None, Some(long_ago.as_str())] {
-            let mut settings = vec![("update_check", "1")];
-            settings.extend(last.map(|t| ("last_update_check", t)));
-            let (_ui, app, _dir) = start_with(&settings);
-            assert_eq!(app.update_timer.interval(), UPDATE_OPENING_DELAY);
-            testing::mock_elapsed_time(UPDATE_OPENING_DELAY);
-            assert!(app.update_checking.get());
-        }
+        let (_ui, app, _dir) =
+            start_with(&[("update_check", "1"), ("last_update_check", &long_ago)]);
+        assert_eq!(app.update_timer.interval(), UPDATE_OPENING_DELAY);
+    }
 
+    #[test]
+    fn the_daily_check_counts_a_day_from_opening_after_a_recent_one() {
         // Checked an hour ago: restarting doesn't ask again, but a day from now.
         let recent = (now() - 3600).to_string();
         let (_ui, app, _dir) = start_with(&[("update_check", "1"), ("last_update_check", &recent)]);
