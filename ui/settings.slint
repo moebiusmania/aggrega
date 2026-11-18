@@ -207,7 +207,7 @@ component ActionCard inherits Rectangle {
     }
 }
 
-// An on/off switch.
+// An on/off switch, toggled by a click or by Space/Enter once focused.
 component Toggle inherits Rectangle {
     in property <bool> on;
     in property <string> label;
@@ -223,8 +223,8 @@ component Toggle inherits Rectangle {
     height: 24px;
     border-radius: self.height / 2;
     background: root.on ? Theme.accent : Theme.chip;
-    border-width: 1px;
-    border-color: root.on ? Theme.accent : Theme.rule;
+    border-width: focus.has-focus ? 2px : 1px;
+    border-color: focus.has-focus ? Theme.accent-strong : root.on ? Theme.accent : Theme.rule;
     animate background, border-color { duration: 200ms; }
 
     Rectangle {
@@ -233,14 +233,27 @@ component Toggle inherits Rectangle {
         y: (parent.height - self.height) / 2;
         x: root.on ? parent.width - self.width - 3px : 3px;
         border-radius: self.height / 2;
-        background: root.on ? white : Theme.text-muted;
+        background: root.on ? Theme.on-accent : Theme.text-muted;
         animate x { duration: 260ms; easing: cubic-bezier(0.3, 1.4, 0.5, 1); }
         animate background { duration: 200ms; }
     }
 
+    focus := FocusScope {
+        key-pressed(event) => {
+            if event.text == " " || event.text == Key.Return {
+                root.toggled();
+                return accept;
+            }
+            reject
+        }
+    }
+
     TouchArea {
         mouse-cursor: pointer;
-        clicked => { root.toggled(); }
+        clicked => {
+            focus.focus();
+            root.toggled();
+        }
     }
 }
 
@@ -714,6 +727,14 @@ component AboutPane inherits VerticalLayout {
     spacing: 8px;
     alignment: start;
 
+    // First thing on the tab, where the sidebar's "vX is out" lands.
+    if root.update-check-available && root.update-version != "": VerticalLayout {
+        padding-bottom: 22px;
+        UpdateNotice {
+            version: root.update-version;
+            open => { root.open-link(root.update-url); }
+        }
+    }
     Text {
         text: @tr("ABOUT");
         font-family: Fonts.sans-black;
@@ -810,10 +831,6 @@ component AboutPane inherits VerticalLayout {
         SectionKicker {
             text: @tr("UPDATES");
         }
-        if root.update-version != "": UpdateNotice {
-            version: root.update-version;
-            open => { root.open-link(root.update-url); }
-        }
         Rectangle {
             border-radius: 4px;
             border-width: 1px;
@@ -835,7 +852,7 @@ component AboutPane inherits VerticalLayout {
                         color: Theme.ink;
                     }
                     Text {
-                        text: @tr("Off unless you turn it on. Aggrega then asks api.github.com for its latest release about once a day, never while you're offline. The request carries nothing but “aggrega/{}” as its user agent: no ID, nothing about you or what you read.", root.version);
+                        text: @tr("Off unless you turn it on. Aggrega then asks api.github.com for its latest release right away, and once a day after that while it's open. The request carries only “aggrega” as its user agent: not even the version, no ID, nothing about you or what you read. Like any website, GitHub sees your IP address.");
                         wrap: word-wrap;
                         font-family: Fonts.serif;
                         font-size: 14.5px;
@@ -969,6 +986,8 @@ export component SettingsDialog inherits Rectangle {
 
     out property <bool> shown: false;
     in-out property <int> tab: 0;
+    // The About tab's index in the rail below.
+    out property <int> about-tab: 4;
 
     public function open() {
         self.shown = true;
@@ -1053,8 +1072,8 @@ export component SettingsDialog inherits Rectangle {
                     SettingsTab {
                         label: @tr("About");
                         icon: Icons.info;
-                        selected: root.tab == 4;
-                        clicked => { root.tab = 4; }
+                        selected: root.tab == root.about-tab;
+                        clicked => { root.tab = root.about-tab; }
                     }
                 }
             }
@@ -1098,7 +1117,7 @@ export component SettingsDialog inherits Rectangle {
                         step(s) => { root.zoom(s); }
                     }
                     about-pane := AboutPane {
-                        visible: root.tab == 4;
+                        visible: root.tab == root.about-tab;
                         width: parent.width;
                         version: root.version;
                         repository: root.repository;

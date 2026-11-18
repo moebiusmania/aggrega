@@ -49,9 +49,14 @@ const DEFAULT_REFRESH_MINUTES: i64 = 20;
 const ZOOM_STEPS: [i64; 7] = [80, 90, 100, 110, 125, 140, 160];
 const DEFAULT_ZOOM: i64 = 100;
 
+/// When the daily update check first asks after Aggrega opens, if a day has
+/// passed since the last check: not in the middle of starting up.
+const UPDATE_OPENING_DELAY: Duration = Duration::from_secs(10);
 /// How long the daily update check waits before trying again after it
 /// couldn't reach GitHub.
-const UPDATE_RETRY_SECS: i64 = 60 * 60;
+const UPDATE_RETRY: Duration = Duration::from_secs(60 * 60);
+/// How long it waits after an answer from GitHub.
+const UPDATE_INTERVAL: Duration = Duration::from_secs(update::INTERVAL_SECS as u64);
 
 thread_local! {
     /// The application state lives on the UI thread; worker threads reach it
@@ -180,8 +185,8 @@ pub struct App {
     update_checking: Cell<bool>,
     /// Someone pressed "Check now" for the running check, so it reports back.
     update_manual: Cell<bool>,
-    /// When the daily check last tried this session, reached GitHub or not.
-    update_attempt: Cell<Option<i64>>,
+    /// Fires the next daily check (single shot, rescheduled after each one).
+    update_timer: slint::Timer,
     /// Where the check asks: `update::LATEST_URL`, except in tests.
     update_source: RefCell<String>,
 }
@@ -277,7 +282,7 @@ impl App {
             update_auto: Cell::new(update_auto),
             update_checking: Cell::new(false),
             update_manual: Cell::new(false),
-            update_attempt: Cell::new(None),
+            update_timer: slint::Timer::default(),
             update_source: RefCell::new(update::LATEST_URL.into()),
         });
         APP.with(|cell| {
@@ -287,6 +292,9 @@ impl App {
             .start(slint::TimerMode::Repeated, minutes(refresh_minutes), || {
                 with_app(|a| a.auto_refresh())
             });
+        if app.update_auto.get() {
+            app.schedule_update_check(app.first_update_delay());
+        }
         Ok(app)
     }
 
@@ -547,7 +555,6 @@ impl App {
             }
         }
         self.update_status();
-        self.auto_update_check();
     }
 
     // ---- thumbnails --------------------------------------------------------
@@ -1603,7 +1610,10 @@ impl App {
             self.report(tr!("Couldn't save the update setting"), &e);
         }
         if on {
-            self.auto_update_check();
+            // Right away; the answer schedules the next one.
+            self.start_update_check(false);
+        } else {
+            self.update_timer.stop();
         }
     }
 
@@ -1612,22 +1622,33 @@ impl App {
         self.start_update_check(true);
     }
 
-    /// Runs once a minute from `tick`: the daily check, if it's on and due.
-    /// Never while offline, and at most once a day once GitHub has answered.
-    fn auto_update_check(&self) {
-        if !update::AVAILABLE || !self.update_auto.get() || self.offline.get() {
-            return;
-        }
+    /// After opening: shortly, if a day has passed since the last check that
+    /// reached GitHub (or the clock was turned back past it), otherwise a day
+    /// from now. So restarting Aggrega never asks more than once a day.
+    fn first_update_delay(&self) -> Duration {
         let now = now();
-        // A time in the future (the clock was turned back) counts as due.
-        let due = |at: Option<i64>, wait: i64| at.is_none_or(|t| t > now || now - t >= wait);
-        let last = self
+        let last: Option<i64> = self
             .store
             .setting("last_update_check")
             .ok()
             .flatten()
             .and_then(|v| v.parse().ok());
-        if due(last, update::INTERVAL_SECS) && due(self.update_attempt.get(), UPDATE_RETRY_SECS) {
+        match last {
+            Some(t) if t <= now && now - t < update::INTERVAL_SECS => UPDATE_INTERVAL,
+            _ => UPDATE_OPENING_DELAY,
+        }
+    }
+
+    fn schedule_update_check(&self, after: Duration) {
+        self.update_timer
+            .start(slint::TimerMode::SingleShot, after, || {
+                with_app(|a| a.auto_update_check())
+            });
+    }
+
+    /// The daily check, when its timer fires.
+    fn auto_update_check(&self) {
+        if update::AVAILABLE && self.update_auto.get() {
             self.start_update_check(false);
         }
     }
@@ -1641,8 +1662,6 @@ impl App {
             self.update_manual.set(true);
             ui.set_update_note(SharedString::new());
             ui.set_update_note_error(false);
-        } else {
-            self.update_attempt.set(Some(now()));
         }
         if self.update_checking.replace(true) {
             // Already asking: the answer will do for both.
@@ -1663,6 +1682,12 @@ impl App {
         self.update_checking.set(false);
         let ui = self.ui();
         ui.set_update_checking(false);
+        let auto = self.update_auto.get();
+        // Switched off while asking: the answer is dropped, unless "Check now"
+        // asked too.
+        if !manual && !auto {
+            return;
+        }
         let reached = !matches!(
             result,
             Err(update::Error::Fetch(fetch::Error::Unreachable { .. }))
@@ -1671,6 +1696,18 @@ impl App {
             let _ = self
                 .store
                 .set_setting("last_update_check", &now().to_string());
+        }
+        if auto {
+            self.schedule_update_check(if reached {
+                UPDATE_INTERVAL
+            } else {
+                UPDATE_RETRY
+            });
+        }
+        if !manual {
+            // Whatever an earlier "Check now" said is out of date.
+            ui.set_update_note(SharedString::new());
+            ui.set_update_note_error(false);
         }
         match result {
             Ok(update::Status::Available(release)) => {
@@ -1683,6 +1720,16 @@ impl App {
                 if manual {
                     ui.set_update_note(
                         tr!("You have the latest version, {}", update::CURRENT).into(),
+                    );
+                }
+            }
+            Ok(update::Status::Unreleased) => {
+                show_release(&ui, None);
+                let _ = self.store.set_setting("latest_release", "");
+                if manual {
+                    ui.set_update_note(
+                        tr!("This build isn't a release, so there's no version to compare it with")
+                            .into(),
                     );
                 }
             }
@@ -2641,7 +2688,7 @@ mod tests {
         toggle.invoke_accessible_default_action();
         assert_eq!(toggle.accessible_checked(), Some(true));
         assert_eq!(saved("update_check").as_deref(), Some("1"));
-        assert!(app.update_checking.get(), "turning it on checks when due");
+        assert!(app.update_checking.get(), "turning it on asks right away");
 
         // GitHub couldn't be reached: the daily check stays quiet, and tries
         // again later rather than waiting a day.
@@ -2656,28 +2703,28 @@ mod tests {
         assert!(!app.update_checking.get());
         assert_eq!(ui.get_update_note(), "");
         assert_eq!(saved("last_update_check"), None);
-        app.tick();
-        assert!(!app.update_checking.get(), "not again within the hour");
+        assert!(app.update_timer.running());
+        assert_eq!(app.update_timer.interval(), UPDATE_RETRY);
 
-        // Once GitHub answered, the next check is a day away.
-        app.update_attempt.set(None);
+        // Once GitHub answered, the next check is a day away, even while offline
+        // (an unreachable GitHub only means another try in an hour).
         app.update_checked(Ok(update::Status::UpToDate));
         assert!(saved("last_update_check").is_some());
-        app.tick();
+        assert_eq!(app.update_timer.interval(), UPDATE_INTERVAL);
+        testing::mock_elapsed_time(UPDATE_INTERVAL - Duration::from_secs(60));
         assert!(!app.update_checking.get(), "at most once a day");
+        testing::mock_elapsed_time(Duration::from_secs(120));
+        assert!(app.update_checking.get(), "a day later");
+        app.update_checked(Ok(update::Status::UpToDate));
 
-        // Never while offline.
-        app.store.set_setting("last_update_check", "0").unwrap();
-        app.offline.set(true);
-        app.tick();
-        assert!(!app.update_checking.get());
-        app.offline.set(false);
-
+        // Off: no more checks, and an answer still on its way is dropped.
         toggle.invoke_accessible_default_action();
         assert_eq!(toggle.accessible_checked(), Some(false));
         assert_eq!(saved("update_check").as_deref(), Some("0"));
-        app.tick();
-        assert!(!app.update_checking.get());
+        assert!(!app.update_timer.running());
+        app.update_checked(Ok(update::Status::Available(release("99.0.0"))));
+        assert_eq!(ui.get_update_version(), "");
+        assert_eq!(saved("latest_release").as_deref(), Some(""));
 
         // "Check now" works with the daily check off, and says how it went.
         app.check_for_updates();
@@ -2707,6 +2754,22 @@ mod tests {
             format!("You have the latest version, {}", update::CURRENT)
         );
         assert!(!ui.get_update_note_error());
+
+        app.check_for_updates();
+        app.update_checked(Ok(update::Status::Unreleased));
+        assert_eq!(
+            ui.get_update_note(),
+            "This build isn't a release, so there's no version to compare it with"
+        );
+
+        // A daily check's answer clears what an earlier "Check now" said.
+        app.check_for_updates();
+        app.update_checked(unreachable());
+        assert!(ui.get_update_note_error());
+        app.set_update_check(true);
+        app.update_checked(Ok(update::Status::UpToDate));
+        assert_eq!(ui.get_update_note(), "");
+        assert!(!ui.get_update_note_error());
     }
 
     #[test]
@@ -2735,11 +2798,7 @@ mod tests {
         assert!(ui.get_settings_open());
         testing::mock_elapsed_time(Duration::from_secs(1));
         assert!(shows(env!("CARGO_PKG_REPOSITORY")), "on the About tab");
-        ui.window().dispatch_event(WindowEvent::PointerScrolled {
-            position: slint::LogicalPosition::new(700., 400.),
-            delta_x: 0.,
-            delta_y: -400.,
-        });
+        // At the top of the tab, without scrolling.
         assert!(shows("Aggrega 99.0.0 is out") && shows("Get it"));
 
         // Kept for the next start (see `a_saved_newer_release_shows_at_startup`)…
@@ -2755,31 +2814,58 @@ mod tests {
         );
     }
 
-    /// A window over a fresh profile whose last check found `saved`.
-    fn start_with_saved_release(saved: &Release) -> (AppWindow, tempfile::TempDir) {
+    /// A window over a fresh profile with these settings saved.
+    fn start_with(settings: &[(&str, &str)]) -> (AppWindow, Rc<App>, tempfile::TempDir) {
         testing::init_no_event_loop();
         let dir = tempfile::tempdir().unwrap();
         let paths = Paths::in_dir(dir.path()).unwrap();
         let store = Store::open(&paths.db).unwrap();
-        store
-            .set_setting("latest_release", &saved.encode())
-            .unwrap();
+        for (key, value) in settings {
+            store.set_setting(key, value).unwrap();
+        }
         let ui = AppWindow::new().unwrap();
-        setup(&ui, store, paths).unwrap();
-        (ui, dir)
+        let app = setup(&ui, store, paths).unwrap();
+        app.update_source
+            .replace("http://127.0.0.1:9/latest".into());
+        (ui, app, dir)
     }
 
     #[test]
     fn a_saved_newer_release_shows_at_startup() {
-        let (ui, _dir) = start_with_saved_release(&release("99.0.0"));
+        let saved = release("99.0.0").encode();
+        let (ui, _app, _dir) = start_with(&[("latest_release", &saved)]);
         assert_eq!(ui.get_update_version(), "99.0.0");
     }
 
     #[test]
     fn a_saved_release_this_build_has_caught_up_with_is_not_shown() {
-        let this_build = release(update::CURRENT);
-        let (ui, _dir) = start_with_saved_release(&this_build);
+        let saved = release(update::CURRENT).encode();
+        let (ui, _app, _dir) = start_with(&[("latest_release", &saved)]);
         assert_eq!(ui.get_update_version(), "");
+    }
+
+    #[test]
+    fn the_daily_check_counts_a_day_from_opening() {
+        let (_ui, app, _dir) = start_with(&[]);
+        assert!(!app.update_timer.running(), "off by default");
+
+        // Never checked, or not for a day: shortly after opening.
+        let long_ago = (now() - 2 * update::INTERVAL_SECS).to_string();
+        for last in [None, Some(long_ago.as_str())] {
+            let mut settings = vec![("update_check", "1")];
+            settings.extend(last.map(|t| ("last_update_check", t)));
+            let (_ui, app, _dir) = start_with(&settings);
+            assert_eq!(app.update_timer.interval(), UPDATE_OPENING_DELAY);
+            testing::mock_elapsed_time(UPDATE_OPENING_DELAY);
+            assert!(app.update_checking.get());
+        }
+
+        // Checked an hour ago: restarting doesn't ask again, but a day from now.
+        let recent = (now() - 3600).to_string();
+        let (_ui, app, _dir) = start_with(&[("update_check", "1"), ("last_update_check", &recent)]);
+        assert_eq!(app.update_timer.interval(), UPDATE_INTERVAL);
+        testing::mock_elapsed_time(UPDATE_OPENING_DELAY);
+        assert!(!app.update_checking.get());
     }
 
     #[test]
