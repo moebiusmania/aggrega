@@ -2812,6 +2812,7 @@ mod tests {
         assert_eq!(saved, Some(release("99.0.0").encode()));
 
         // …and dropped once a check finds nothing newer.
+        app.check_for_updates();
         app.update_checked(Ok(update::Status::UpToDate));
         assert_eq!(ui.get_update_version(), "");
         assert_eq!(
