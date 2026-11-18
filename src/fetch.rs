@@ -496,7 +496,7 @@ mod tests {
             .filter(|l| l.starts_with("user-agent:"))
             .collect();
         assert_eq!(agents, ["user-agent: aggrega"], "no version: {request:?}");
-        // What the README and the About tab say the request carries: the
+        // What the README and the Updates tab say the request carries: the
         // headers every HTTP client sends, and nothing that identifies anyone.
         for line in &request[1..] {
             let name = line.split(':').next().unwrap().to_ascii_lowercase();

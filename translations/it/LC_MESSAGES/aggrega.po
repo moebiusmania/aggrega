@@ -177,8 +177,8 @@ msgstr "L'elenco di iscrizioni standard che ogni lettore di feed sa importare."
 msgid "Export…"
 msgstr "Esporta…"
 
-msgid "Updates"
-msgstr "Aggiornamenti"
+msgid "Refresh news"
+msgstr "Aggiorna notizie"
 
 msgid "Fresh stories, on their own"
 msgstr "Notizie fresche, da sole"
@@ -697,7 +697,16 @@ msgstr "la connessione è caduta prima che arrivasse l'intero database"
 msgid "couldn't save the received database: {}"
 msgstr "impossibile salvare il database ricevuto: {}"
 
-# App update check (Settings › About).
+# App update check (Settings › Updates).
+
+msgid "Updates"
+msgstr "Aggiornamenti"
+
+msgid "New versions of Aggrega"
+msgstr "Nuove versioni di Aggrega"
+
+msgid "Aggrega never looks for new versions unless you ask it to. When one is out, its release page on GitHub has the downloads."
+msgstr "Aggrega non cerca mai nuove versioni a meno che tu non glielo chieda. Quando ne esce una, la sua pagina su GitHub ha i download."
 
 msgid "v{} is out"
 msgstr "v{} disponibile"
@@ -713,9 +722,6 @@ msgstr "La sua pagina su GitHub ha le note di rilascio e i download per ogni pia
 
 msgid "Get it"
 msgstr "Scarica"
-
-msgid "UPDATES"
-msgstr "AGGIORNAMENTI"
 
 msgid "Check for new versions once a day"
 msgstr "Cerca nuove versioni una volta al giorno"
